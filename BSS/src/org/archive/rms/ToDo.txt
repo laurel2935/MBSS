@@ -1,0 +1,26 @@
+
+1 检查下载数据的格式正确性(e.g., <doc></doc>是否成对)；
+      过滤部分url类型，如pdf，excel等；
+2 根据现有可用文档集合，构建isValid()函数(e.g., 根据不可获取原文档的url的个数作为阈值)，验证是否使用某个session；
+3 根据指定文档集(e.g., 全部可用文档集/title部分/url部分等)训练lda模型，得到使用文档集的topic distribution;
+4 query log 的读取以及Tuser list的初始化；
+5 训练以及优化模型；
+6 测试模型；
+7 同其他模型的结合；
+
+//根据指定文档集，需要的pre-tasks
+(1) pre-indexing(html, text), mainly for relevance features; buffer results;
+(2) pre-training(text), mainly for marginal relevance features; buffer results;
+
+
+step-1: based on downloaded data, prepare the set of urls that represents the html-available ones
+//1) check data set format effectiveness;
+
+step-2: index file; train lda with extracted files;
+step-3: buffer feature vectors;
+
+
+
+!!!!K usage should be treated as a rank Position instead of the index
+
+  
