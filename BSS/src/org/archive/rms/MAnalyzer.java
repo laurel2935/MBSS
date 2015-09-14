@@ -9,7 +9,6 @@ import java.util.HashMap;
 import org.archive.access.feature.FRoot;
 import org.archive.access.feature.IAccessor;
 import org.archive.access.feature.RFeature;
-import org.archive.access.feature.FRoot.SysType;
 import org.archive.access.index.DocData.DocStyle;
 import org.archive.access.utility.SimpleTensor;
 import org.archive.rms.data.BingQSession1;
@@ -28,9 +27,9 @@ import org.ejml.simple.SimpleMatrix;
  * **/
 
 public class MAnalyzer {
-	protected static FRoot _fRoot = new FRoot(SysType.WIN);
+	protected static FRoot _fRoot = new FRoot();
 	
-	protected static final String NEWLINE = System.getProperty("line.separator");
+	public static final String NEWLINE = System.getProperty("line.separator");
 	protected static final String QSessionLine = "QSession";
 	protected static final String TAB = "\t";
 	
@@ -38,7 +37,7 @@ public class MAnalyzer {
 	String _rawSearchLogFile;
 	
 	//filtering sessions
-	int _threshold_UnavailableHtml_NonClickedUrl = 3;
+	int _threshold_UnavailableHtml_NonClickedUrl = 0;
 	int _threshold_UnavailableHtml_ClickedUrl    = 0;
 	int _totalAcceptedSessions;
 	
@@ -53,7 +52,8 @@ public class MAnalyzer {
 	protected MClickModel _mClickModel;
 	
 	//for features
-	IAccessor _iAccessor = new IAccessor(DocStyle.ClickText, false, true);
+	IAccessor _iAccessor;
+	//= new IAccessor(DocStyle.ClickText, false, true);
 	
 	MAnalyzer(){
 		
@@ -116,6 +116,8 @@ public class MAnalyzer {
 		
 		this._totalAcceptedSessions = sessionCount;
 		this._userList = tUserList;		
+		
+		System.out.println(_totalAcceptedSessions);
 	}
 	
 	protected void bufferAcceptedSessions(ArrayList<TUser> tUserList) {
@@ -425,4 +427,11 @@ public class MAnalyzer {
 		bufferMarFeature(simQSessionList);
 	}
 	
+	
+	public static void main(String []args){
+		//1
+		MAnalyzer mAnalyzer = new MAnalyzer();
+		mAnalyzer.setSearchLogFile(BFRoot._file_UsedSearchLog);
+		mAnalyzer.loadSearchLog();
+	}
 }

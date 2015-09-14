@@ -6,17 +6,20 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.archive.rms.BFRoot;
+import org.archive.rms.MAnalyzer;
 import org.archive.util.io.IOText;
-import org.netlib.util.booleanW;
 
 import de.l3s.boilerpipe.extractors.ArticleExtractor;
 
 public class DataAccessor {
 	//for extracting the title segment
-	private static Pattern titlePattern = Pattern.compile("<title>(.*?)</title>"); 
+	private static Pattern titlePattern = Pattern.compile("<title>(.*?)</title>");
+	private static HashSet<String> _acceptedUrlAndWithAvailableHtmlSet = null;
 		
 	//////////
 	//Part-1
@@ -139,49 +142,11 @@ public class DataAccessor {
 			e.printStackTrace();
 		}
 		
-		System.out.println("Count of Loaded Htmls:\t"+htmlDocList.size());
+		//System.out.println("Count of Loaded Htmls:\t"+htmlDocList.size());
 		//htmlDocList.get(943).sysOutput();
 		return htmlDocList;
 	}
-	//check whether a file of downloaded htmls are well formatted.
-	private static boolean isValidFile(String file){
-		ArrayList<HtmlDoc> htmlDocList = new ArrayList<HtmlDoc>();
-		
-		int docNum=0, slashDocNum=0;
-		try {			
-			ArrayList<String> lineList = IOText.getLinesAsAList_UTF8(file);
-			
-			HtmlDoc htmlDoc = null;
-			StringBuffer buffer = new StringBuffer();
-			String url = null;
-			
-			for(String line: lineList){
-				if(line.indexOf("</doc>") >=0){
-					htmlDoc = new HtmlDoc(url, buffer.toString());
-					htmlDocList.add(htmlDoc);	
-					
-					slashDocNum++;					
-				}else if(line.indexOf("</url>") >= 0){
-					url = line.substring(5, line.length()-6);
-					buffer.delete(0, buffer.length());
-				}else if(line.indexOf("<doc>") >=0){
-					docNum++;
-				}else{
-					buffer.append(line+"\n");
-				}
-			}			
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		
-		if(docNum==slashDocNum && docNum==htmlDocList.size()){
-			return true;
-		}else{
-			System.out.println(file);
-			System.out.println("DocNum: "+docNum+"\tslashDocNum: "+slashDocNum+"\thtmlDocList: "+htmlDocList.size());
-			return false;
-		}
-	}
+	
 	
 	//extract meta data given a html source file
 	public static String getTitle(String htmlStr){
@@ -280,19 +245,148 @@ public class DataAccessor {
 		
 	}
 	
+	//step-1: By calling ClickThroughAnalyzer.getStatistics(k) for generating the desired accepted session data.
+	//step-2: check the format of downloaded html files
+	private static void checkDownloadedFileFormat(String dir){
+		try {
+			File dirFile = new File(dir);	
+			ArrayList<File> fileList = new ArrayList<>();
+			getFiles(dirFile, fileList);
+			System.out.println("size:\t"+fileList.size());
+			
+			for(File file: fileList){
+				String fPath = file.getAbsolutePath();
+				if(fPath.indexOf("00000") >= 0){
+					if(!isValidFile(fPath)){
+						System.out.println(fPath);
+					}
+				}
+			}			
+		} catch (Exception e) {
+			// TODO: handle exception
+			e.printStackTrace();
+		}
+	}
+	//check whether a file of downloaded htmls are well formatted.
+	private static boolean isValidFile(String file){
+		ArrayList<HtmlDoc> htmlDocList = new ArrayList<HtmlDoc>();
+		
+		int docNum=0, slashDocNum=0;
+		try {			
+			ArrayList<String> lineList = IOText.getLinesAsAList_UTF8(file);
+			
+			HtmlDoc htmlDoc = null;
+			StringBuffer buffer = new StringBuffer();
+			String url = null;
+			
+			for(String line: lineList){
+				if(line.indexOf("</doc>") >=0){
+					htmlDoc = new HtmlDoc(url, buffer.toString());
+					htmlDocList.add(htmlDoc);	
+					
+					slashDocNum++;					
+				}else if(line.indexOf("</url>") >= 0){
+					url = line.substring(5, line.length()-6);
+					buffer.delete(0, buffer.length());
+				}else if(line.indexOf("<doc>") >=0){
+					docNum++;
+				}else{
+					buffer.append(line+"\n");
+				}
+			}			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		if(docNum==slashDocNum && docNum==htmlDocList.size()){
+			return true;
+		}else{
+			System.out.println(file);
+			System.out.println("DocNum: "+docNum+"\tslashDocNum: "+slashDocNum+"\thtmlDocList: "+htmlDocList.size());
+			return false;
+		}
+	}
+	//
+	private static void getFiles(File dirFile, ArrayList<File> fileList){
+		for(File file: dirFile.listFiles()){
+			if(file.isDirectory()){
+				getFiles(file, fileList);
+			}else{
+				fileList.add(file);
+			}
+		}
+	}
+	//step-3: extract the set of urls w.r.t. the downloaded html files. The result set of urls is used as the base w.r.t. the function: isHtmlAccessible
+	private static void extractAcceptedUrlsWithAvailableHtmls(String collectionDir){
+		try {
+			String targetFile = "/Users/dryuhaitao/WorkBench/Corpus/DataSource_Raw/WebPage/AcceptedUrlsWithAvailableHtmls_BasedOnAtLeast2Clicks.txt";
+			BufferedWriter tWriter = IOText.getBufferedWriter_UTF8(targetFile);
+			
+			File dirFile = new File(collectionDir);	
+			ArrayList<File> fileList = new ArrayList<>();
+			getFiles(dirFile, fileList);
+			System.out.println("size:\t"+fileList.size());
+			
+			for(File file: fileList){
+				String fPath = file.getAbsolutePath();
+				if(fPath.indexOf("00000") >= 0){
+					ArrayList<HtmlDoc> htmlDocList = loadHtmlSourceFiles(fPath);
+					for(HtmlDoc htmlDoc: htmlDocList){
+						if(accept(htmlDoc._url)){
+							tWriter.write(htmlDoc._url+MAnalyzer.NEWLINE);
+						}
+					}
+				}
+			}		
+			
+			tWriter.flush();
+			tWriter.close();
+		} catch (Exception e) {
+			// TODO: handle exception
+			e.printStackTrace();
+		}
+	}
+	
+	private static boolean accept(String urlString){
+		if(urlString.endsWith(".doc") || urlString.endsWith(".DOC") 
+				|| urlString.endsWith(".pdf") || urlString.endsWith(".PDF")
+				|| urlString.endsWith(".docx") || urlString.endsWith(".DOCX")
+				|| urlString.endsWith(".ppt") || urlString.endsWith(".PPT")){
+			
+			return false;
+			
+		}else {
+			return true;
+		}
+	} 
+	
+	
 	
 	//////////
 	//Part-2
 	//////////
 	//to do
-	public static boolean isHtmlAccessible(String urlStr){
-		return false;
+ 	public static boolean isAccetpedAndHtmlAccessible(String urlStr){
+ 		if(null == _acceptedUrlAndWithAvailableHtmlSet){
+ 			_acceptedUrlAndWithAvailableHtmlSet = new HashSet<>();
+ 			
+ 			ArrayList<String> lineList = IOText.getLinesAsAList_UTF8(BFRoot._file_AcceptedUrlAndWithAvailableHtml);
+ 			for(String line: lineList){
+ 				_acceptedUrlAndWithAvailableHtmlSet.add(line);
+ 			}
+ 		}
+ 		
+ 		if(_acceptedUrlAndWithAvailableHtmlSet.contains(urlStr)){
+ 			return true;
+ 		}else {
+			return false;
+		}
 	}
 	
 	
 	
 	public static void main(String []args){
-		String root = "C:/T/WorkBench/Corpus/DataSource_Analyzed/FilteredBingOrganicSearchLog_AtLeast_2Click/";
+		//String root = "C:/T/WorkBench/Corpus/DataSource_Analyzed/FilteredBingOrganicSearchLog_AtLeast_2Click/";
 		//1
 		//String file = root+"AcceptedSessionData_AtLeast_2Click.txt";
 		//DataAccessor.loadSearchLog(file);
@@ -306,7 +400,26 @@ public class DataAccessor {
 		//DataAccessor.extractMeta(file);
 		
 		//4
+		/*
 		String file = root+"Top100/HtmlSourceFiles_Top100/Meta_00000001.txt";
 		DataAccessor.loadMetaFiles(file);
+		*/
+		
+		//5 check
+		//String dir = "/Users/dryuhaitao/WorkBench/Corpus/DataSource_Raw/WebPage/Collection_BasedOnAtLeast2Click/";
+		//DataAccessor.checkDownloadedFileFormat(dir);
+		//result
+		// size:	665
+		// /Users/dryuhaitao/WorkBench/Corpus/DataSource_Raw/WebPage/Collection_BasedOnAtLeast2Click/Fetch_Results_6thTime_Checked/0001/0001-00000010.txt
+		//6 further check
+		//DataAccessor.isValidFile("/Users/dryuhaitao/WorkBench/Corpus/DataSource_Raw/WebPage/Collection_BasedOnAtLeast2Click/Fetch_Results_6thTime_Checked/0001/0001-00000010.txt");
+		
+		//7
+		//String dir = "/Users/dryuhaitao/WorkBench/Corpus/DataSource_Raw/WebPage/Collection_BasedOnAtLeast2Click/";
+		//DataAccessor.extractAcceptedUrlsWithAvailableHtmls(dir);
+		
+		//8
+		System.out.println(DataAccessor.isAccetpedAndHtmlAccessible("http://www.printfriendly.com/"));
+		
 	}
 }

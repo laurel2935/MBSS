@@ -50,7 +50,7 @@ public class TQuery {
 			String urlStr = displayedUrlList.get(i);
 			int rankPosition = i+1;
 			int gTruthClick = clickVector.get(i)?1:0;
-			boolean htmlAvailable = DataAccessor.isHtmlAccessible(urlStr);
+			boolean htmlAvailable = DataAccessor.isAccetpedAndHtmlAccessible(urlStr);
 			
 			TUrl tUrl = new TUrl(urlStr, rankPosition, gTruthClick, htmlAvailable);
 			this._urlList.add(tUrl);
