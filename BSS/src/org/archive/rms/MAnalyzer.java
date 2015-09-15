@@ -431,7 +431,7 @@ public class MAnalyzer {
 	public static void main(String []args){
 		//1
 		MAnalyzer mAnalyzer = new MAnalyzer();
-		mAnalyzer.setSearchLogFile(BFRoot._file_UsedSearchLog);
+		mAnalyzer.setSearchLogFile(FRoot._file_UsedSearchLog);
 		mAnalyzer.loadSearchLog();
 	}
 }
