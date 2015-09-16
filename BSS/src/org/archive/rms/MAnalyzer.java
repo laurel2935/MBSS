@@ -412,6 +412,8 @@ public class MAnalyzer {
 	 * required lines: 
 	 * MAnalyzer(int threshold_UnavailableHtml_NonClickedUrl, int threshold_UnavailableHtml_ClickedUrl){}
 	 * setSearchLogFile(String rawSearchLogFile);
+	 * 
+	 * if 0 0, this will not be needed
 	 * **/
 	public void getSimplifiedQSessions(){
 		loadSearchLog();

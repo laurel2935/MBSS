@@ -13,12 +13,18 @@ import java.util.regex.Pattern;
 import org.archive.access.feature.FRoot;
 import org.archive.rms.MAnalyzer;
 import org.archive.util.io.IOText;
+import org.htmlparser.NodeFilter;
+import org.htmlparser.Parser;
+import org.htmlparser.filters.AndFilter;
+import org.htmlparser.filters.HasAttributeFilter;
+import org.htmlparser.filters.TagNameFilter;
+import org.htmlparser.util.NodeList;
 
 import de.l3s.boilerpipe.extractors.ArticleExtractor;
 
 public class DataAccessor {
 	//for extracting the title segment
-	private static Pattern titlePattern = Pattern.compile("<title>(.*?)</title>");
+	private static Pattern titlePattern = Pattern.compile("<title(.*?)/title>");
 	private static HashSet<String> _acceptedUrlAndWithAvailableHtmlSet = null;
 		
 	//////////
@@ -273,16 +279,58 @@ public class DataAccessor {
 	} 
 	//step-4: extract text from htmls for later indexing and lda training
 	//extract meta data given a html source file
-	public static String getTitle(String htmlStr){
+	public static String extractTitleByPattern(String htmlStr){
 		Matcher matcher = titlePattern.matcher(htmlStr);
 		
 		if(matcher.find()){
 			String matStr = matcher.group();
-			return matStr.substring(7, matStr.length()-8);
+			return matStr.substring(matStr.indexOf(">")+1, matStr.length()-8);
 		}else{
 			return null;
 		}
 	}
+	
+	public static String extractTitleByParser(String htmlStr){
+		String title = null;
+		try {
+			Parser htmlParser = new Parser(htmlStr);
+
+			NodeFilter titleFilter = new TagNameFilter("title");					
+			NodeList tNodeList = htmlParser.parse(titleFilter);
+			
+			if(tNodeList.size() > 0){
+				title = tNodeList.elementAt(0).toPlainTextString();
+				return title;
+			}				
+		} catch (Exception e) {
+			// TODO: handle exception
+			//System.err.println("Error w.r.t. extracting title!");
+			//System.out.println("---");
+			//System.out.println(htmlStr);
+			//System.out.println("---");
+		}
+		return null;
+	}
+	
+	public static void testExtract(){
+		try {
+			ArrayList<String> lineList = IOText.getLinesAsAList_UTF8("test3.txt");
+			StringBuffer buffer = new StringBuffer();
+			for(String line: lineList){
+				buffer.append(line+MAnalyzer.NEWLINE);
+			}
+			String htmlStr = buffer.toString();
+			
+			System.out.println(htmlStr);
+			
+			System.out.println(extractTitleByParser(htmlStr));
+			System.out.println("---");
+			System.out.println(extractTitleByPattern(htmlStr));
+		} catch (Exception e) {
+			// TODO: handle exception
+		}
+	}
+	
 	private static void extractText(String htmlfile){
 		
 		//check before parsing
@@ -318,6 +366,7 @@ public class DataAccessor {
 				}
 				*/
 				
+				// url
 				url = htmlDoc.getUrl();
 				if(!accept(url)){
 					continue;
@@ -327,8 +376,17 @@ public class DataAccessor {
 					continue;
 				}
 				
+				//title
+				title = extractTitleByParser(htmlDoc.getHtmlStr());
+				if(null == title){
+					title = extractTitleByPattern(htmlDoc.getHtmlStr());
+				}
+				if(null == title){
+					continue;
+				}
 				
-				title = getTitle(htmlDoc.getHtmlStr());
+				//text
+				
 				try {
 					
 					//System.out.println(url);
@@ -532,8 +590,8 @@ public class DataAccessor {
 		//System.out.println(DataAccessor.isAccetpedAndHtmlAccessible("http://www.printfriendly.com/"));
 		
 		//9
-		////String dir = "/Users/dryuhaitao/WorkBench/Corpus/DataSource_Raw/WebPage/Collection_BasedOnAtLeast2Clicks/";
-		////DataAccessor.extractAll(dir);
+		//String dir = "/Users/dryuhaitao/WorkBench/Corpus/DataSource_Raw/WebPage/Collection_BasedOnAtLeast2Clicks/";
+		//DataAccessor.extractAll(dir);
 		
 		//10
 		//String dir = "/Users/dryuhaitao/WorkBench/Corpus/DataSource_Raw/WebPage/TxtCollection_BasedOnAtLeast2Clicks";
@@ -542,6 +600,9 @@ public class DataAccessor {
 		//11 text extracting urls
 		//String file = "/Users/dryuhaitao/WorkBench/Corpus/DataSource_Raw/WebPage/TxtCollection_BasedOnAtLeast2Clicks/Fetch_Results_6thTime/0002/TXT_0002-00000011.txt";
 		//DataAccessor.extractUrlsFromExtractedTexts(file);
+		
+		//12 extract title
+		//DataAccessor.testExtract();
 		
 	}
 }

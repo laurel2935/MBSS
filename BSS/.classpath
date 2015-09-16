@@ -11,5 +11,6 @@
 	<classpathentry kind="lib" path="/Users/dryuhaitao/WorkBench/CodeBench/JarPool/jar_ClickModel/ejml-v0.28-libs/EJML-core-0.28.jar"/>
 	<classpathentry kind="lib" path="/Users/dryuhaitao/WorkBench/CodeBench/JarPool/jar_ClickModel/ejml-v0.28-libs/EJML-simple-0.28.jar"/>
 	<classpathentry kind="lib" path="/Users/dryuhaitao/WorkBench/CodeBench/JarPool/jar_DiversifiedRanking/boilerpipe/boilerpipe-1.2.0.jar"/>
+	<classpathentry kind="lib" path="/Users/dryuhaitao/WorkBench/CodeBench/JarPool/jar_DiversifiedRanking/htmlparser/htmlparser_inner.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
