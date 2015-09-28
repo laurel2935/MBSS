@@ -5,8 +5,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 
 import org.archive.access.feature.FRoot;
+import org.archive.access.feature.HtmlPlainText;
 import org.archive.access.feature.IAccessor;
 import org.archive.access.feature.RFeature;
 import org.archive.access.index.DocData.DocStyle;
@@ -88,7 +90,7 @@ public class MAnalyzer {
 	/**
 	 * load the search query log, and initialize specific TQuery, TUrl, TUser, etc.
 	 * **/
-	private void loadSearchLog(){
+	private void loadSearchLog(boolean check){
 		
 		ArrayList<BingQSession1> bingQSessionList = DataAccessor.loadSearchLog(_rawSearchLogFile);
 		
@@ -104,10 +106,9 @@ public class MAnalyzer {
 		
 		HashMap<String, TUser> tUserMap = new HashMap<>();
 		
-		boolean check = true;
 		int usedCount = 0;
 		
-		System.out.println(key2MarFeatureMap.size());
+		//System.out.println(key2MarFeatureMap.size());
 		
 		for(TQuery tQuery: tQueryList){
 			
@@ -167,7 +168,7 @@ public class MAnalyzer {
 										+NEWLINE);					
 					ArrayList<TUrl> urlList = tQuery.getUrlList();
 					for(TUrl tUrl: urlList){
-						sessionWriter.write(tUrl.getDocNo()+NEWLINE);
+						sessionWriter.write(tUrl.getDocNo()+":"+tUrl.getUrl()+NEWLINE);
 					}
 				}
 			}
@@ -263,15 +264,18 @@ public class MAnalyzer {
 		String _key;
 		String _queryText;
 		ArrayList<String> _docNoList;
+		ArrayList<String> _urlList;
 		
 		SimQSession(String key, String queryText){
 			this._key = key;
 			this._queryText = queryText;
 			this._docNoList = new ArrayList<>();
+			this._urlList = new ArrayList<>();
 		}
 		
-		public void addDoc(String docNo){
+		public void addDoc(String docNo, String url){
 			this._docNoList.add(docNo);
+			this._urlList.add(url);
 		}
 				
 		public String getQueryText(){
@@ -319,9 +323,11 @@ public class MAnalyzer {
 					}						
 				}else{
 					if(null != simQSession){
-						//String [] parts = line.split(":");					 	
-						//docno
-						simQSession.addDoc(line);											
+						int splitIndex = line.indexOf(":");
+						String docNo = line.substring(0, splitIndex);
+						String url = line.substring(splitIndex+1);
+						//
+						simQSession.addDoc(docNo, url);											
 					}
 				}
 			}
@@ -393,15 +399,26 @@ public class MAnalyzer {
 		return dList;
 	}
 	
-	public void bufferMarFeature(ArrayList<SimQSession> simQSessionList){
+	public void bufferMarFeature(boolean check, ArrayList<SimQSession> simQSessionList){
 		String targetFile = _fRoot._bufferDir+"MarginalRelevanceFeatureVectors"
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_ClickedUrl)
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_NonClickedUrl)
 				+"_"+Integer.toString(this._totalAcceptedSessions)+".txt";
 		try {
+			HashSet<String> htmlUrlSet = new HashSet<>();
+			
+			for(SimQSession simSession: simQSessionList){
+				for(String url: simSession._urlList){
+					if(!htmlUrlSet.contains(url)){
+						htmlUrlSet.add(url);
+					}
+				}
+			}	
+			
+			HashMap<String, HtmlPlainText> docNo2HtmlPlainTextMap = DataAccessor.loadHtmlText(htmlUrlSet);
+			
 			BufferedWriter mFeatureWriter = IOText.getBufferedWriter_UTF8(targetFile);
 			
-			boolean check = true;
 			int threshold;
 			if(check){
 				threshold = Math.min(10, simQSessionList.size());
@@ -415,7 +432,7 @@ public class MAnalyzer {
 				
 				String qText = simQSession.getQueryText();
 				ArrayList<String> docNoList = simQSession.getDocList();
-				SimpleTensor mTensor = _iAccessor.getMFeature(false, _iAccessor.getDocStyle(), qText, docNoList);
+				SimpleTensor mTensor = _iAccessor.getMFeature(false, _iAccessor.getDocStyle(), qText, docNoList, docNo2HtmlPlainTextMap);
 				 String mTensorString = getMFeatureVector(mTensor);
 				 
 				mFeatureWriter.write(QSessionLine+":"										
@@ -493,15 +510,15 @@ public class MAnalyzer {
 	 * 
 	 * if 0 0, this will not be needed
 	 * **/
-	public void getSimplifiedQSessions(){
-		loadSearchLog();
+	public void getSimplifiedQSessions(boolean check){
+		loadSearchLog(check);
 		bufferAcceptedSessions(this._userList);		
 	}
 	
 	//2 buffer feature vectors
 	//之前需完成(1) text extraction for LDA training; (2) pre-index;
 	
-	public void bufferFeatureVectors(){
+	public void bufferFeatureVectors(boolean check){
 		ArrayList<SimQSession> simQSessionList = loadAcceptedSessions();
 		//for test
 		//SimQSession sQSession = simQSessionList.get(0);
@@ -511,7 +528,7 @@ public class MAnalyzer {
 		//bufferReleFeature(simQSessionList);
 		
 		//buffer-2
-		bufferMarFeature(simQSessionList);
+		bufferMarFeature(check, simQSessionList);
 	}
 	
 	
@@ -528,17 +545,18 @@ public class MAnalyzer {
 		/*
 		MAnalyzer mAnalyzer = new MAnalyzer(false);
 		mAnalyzer.setSearchLogFile(FRoot._file_UsedSearchLog);
-		mAnalyzer.getSimplifiedQSessions();
+		mAnalyzer.getSimplifiedQSessions(false);
 		*/
 		
 		//3 step-2
 		// buffer rele and mar features
-		/*
+		///*
 		MAnalyzer mAnalyzer = new MAnalyzer(true);
-		mAnalyzer.bufferFeatureVectors();
-		*/
+		mAnalyzer.bufferFeatureVectors(true);
+		//*/
 		
 		//4 step-3
+		/*
 		MAnalyzer mAnalyzer = new MAnalyzer(false);
 		mAnalyzer.loadFeatureVectors();
 		
@@ -546,6 +564,7 @@ public class MAnalyzer {
 		mAnalyzer.loadSearchLog();
 		
 		mAnalyzer.iniClickModel();
+		*/
 		
 	}
 }

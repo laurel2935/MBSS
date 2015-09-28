@@ -1,11 +1,11 @@
 package org.archive.rms.data;
 
-public class HtmlPlainText {
+public class HtmlPlainText_del {
 	String _url;
 	String _title;
 	String _plainText;
 	
-	HtmlPlainText(String url, String title, String plainText){
+	HtmlPlainText_del(String url, String title, String plainText){
 		this._url = url;
 		this._title = title;
 		this._plainText = plainText;

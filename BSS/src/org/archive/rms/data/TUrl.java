@@ -79,4 +79,8 @@ public class TUrl {
 	public double getDisToLastClick(){
 		return this._disToLastClick;
 	}
+	
+	public String getUrl(){
+		return this._urlStr;
+	}
 }

@@ -6,11 +6,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.archive.access.feature.FRoot;
+import org.archive.access.feature.HtmlPlainText;
+import org.archive.access.feature.IAccessor;
 import org.archive.rms.MAnalyzer;
 import org.archive.util.io.IOText;
 import org.htmlparser.NodeFilter;
@@ -26,6 +29,10 @@ public class DataAccessor {
 	//for extracting the title segment
 	private static Pattern titlePattern = Pattern.compile("<title(.*?)/title>");
 	private static HashSet<String> _acceptedUrlAndWithAvailableHtmlSet = null;
+	
+	
+	////batch access of text for topic distribution, which should be better than accessing index
+	//private HashMap<String, HtmlPlainText> _docNo2HtmlPlainTextMap;
 		
 	//////////
 	//Part-1
@@ -529,6 +536,38 @@ public class DataAccessor {
 	}
 	
 	//step-6: index files by TarIndexor in FLucene
+	
+	//buffer text for 
+	public static HashMap<String, HtmlPlainText> loadHtmlText(HashSet<String> htmlUrlSet){
+		HashMap<String, HtmlPlainText> docNo2HtmlPlainTextMap = new HashMap<>();
+		
+		try {
+			File dirFile = new File(FRoot._textDataDir);	
+			ArrayList<File> fileList = new ArrayList<>();
+			getHtmlFiles(dirFile, fileList);
+			System.out.println("size:\t"+fileList.size());
+			
+			for(File file: fileList){
+				String fPath = file.getAbsolutePath();
+				if(fPath.indexOf("00000") >= 0){
+					ArrayList<HtmlPlainText> htmlTextList = loadMetaFiles(fPath);
+					
+					//System.out.println(htmlTextList.size());
+					
+					for(HtmlPlainText htmlText: htmlTextList){
+						if(htmlUrlSet.contains(htmlText._url)){
+							docNo2HtmlPlainTextMap.put(IAccessor.getDocNo(htmlText._url), htmlText);
+						}
+					}
+				}
+			}			
+		} catch (Exception e) {
+			// TODO: handle exception
+			e.printStackTrace();
+		}
+		
+		return docNo2HtmlPlainTextMap;		
+	}
 	
 	//////////
 	//Part-2
