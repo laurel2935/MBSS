@@ -24,6 +24,7 @@ import org.ejml.simple.SimpleMatrix;
 /**
  * The framework performs the following tasks:
  * 1. process w.r.t. the search log
+ * 2. provide features for the input QSessions for the MClickModel
  * 
  * **/
 
@@ -32,8 +33,7 @@ public class MAnalyzer {
 	
 	public static final String NEWLINE = System.getProperty("line.separator");
 	protected static final String QSessionLine = "QSession";
-	protected static final String TAB = "\t";
-	
+	protected static final String TAB = "\t";	
 	
 	String _rawSearchLogFile;
 	
@@ -48,14 +48,16 @@ public class MAnalyzer {
 	protected HashMap<String, ArrayList<Double>> key2ReleFeatureMap;
 	//simQSession.getKey()+":"+qText
 	protected HashMap<String, SimpleTensor> key2MarFeatureMap;
-	
-	
+		
 	protected MClickModel _mClickModel;
 	
 	//for features
 	IAccessor _iAccessor;
 	//= new IAccessor(DocStyle.ClickText, false, true);
-	
+		
+	/**
+	 * @param ini true is for buffering features. once the features have been buffered, it should be false;
+	 * **/
 	MAnalyzer(boolean ini){
 		
 		if(ini){
@@ -67,9 +69,9 @@ public class MAnalyzer {
 	//////////
 	//Necessary for click-model training & testing
 	//////////
-	public void loadFeatureVectors(int sliceNum){
+	public void loadFeatureVectors(){
 		key2ReleFeatureMap = loadRFeatureVectors();
-		key2MarFeatureMap = loadMarFeatureVectors(sliceNum);
+		key2MarFeatureMap = loadMarFeatureVectors();
 	}
 	//////////
 	//for pre-buffering
@@ -210,26 +212,32 @@ public class MAnalyzer {
 		
 		ArrayList<TUrl> adjustedUrlList = new ArrayList<>();
 		
+		ArrayList<Boolean> clickVector = new ArrayList<>();
 		int adjustedRankPosition = 1;
 		
 		for(TUrl tUrl: originalUrlList){
 			if(tUrl.isHtmlAvailable()){
 				tUrl.adjustRankPosition(adjustedRankPosition++);
 				adjustedUrlList.add(tUrl);
+				clickVector.add(tUrl.getGTruthClick()>0?true:false);
 			}
-		}		
+		}	
+		
+		tQuery.setGTruthClickSequence(clickVector);
 	}
 	
 	
 	protected void iniClickModel() {
 		
+		//set the corresponding feature vectors
 		for(TUser tUser: _userList){
 			for(TQuery tQuery: tUser.getQueryList()){
-				//System.out.println(tQuery.getKey());
-				tQuery.setMarTensor(key2MarFeatureMap.get(tQuery.getKey()+":"+tQuery.getQueryText()));
+				String qKey = tQuery.getKey()+":"+tQuery.getQueryText();
+				tQuery.setMarTensor(key2MarFeatureMap.get(qKey));
 				
 				for(TUrl tUrl: tQuery.getUrlList()){
-					tUrl.setReleFeatureVector(toDArray(key2ReleFeatureMap.get(tUrl.getDocNo()+":"+tQuery.getQueryText())));
+					String urlKey = tUrl.getDocNo()+":"+tQuery.getQueryText();
+					tUrl.setReleFeatureVector(toDArray(key2ReleFeatureMap.get(urlKey)));
 				}				
 			}
 		}
@@ -452,7 +460,7 @@ public class MAnalyzer {
 		return strBuffer.toString();
 	}
 	
-	public HashMap<String, SimpleTensor> loadMarFeatureVectors(int sliceNum){
+	public HashMap<String, SimpleTensor> loadMarFeatureVectors(){
 		String targetFile = _fRoot._bufferDir+"MarginalRelevanceFeatureVectors"
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_ClickedUrl)
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_NonClickedUrl)
@@ -463,7 +471,7 @@ public class MAnalyzer {
 		try {
 			ArrayList<String> lineList = IOText.getLinesAsAList_UTF8(targetFile);
 			
-			key2MarFeatureMap = IAccessor.loadMarTensor(sliceNum, lineList);
+			key2MarFeatureMap = IAccessor.loadMarTensor(lineList);
 			
 		} catch (Exception e) {
 			// TODO: handle exception
@@ -532,7 +540,7 @@ public class MAnalyzer {
 		
 		//4 step-3
 		MAnalyzer mAnalyzer = new MAnalyzer(false);
-		mAnalyzer.loadFeatureVectors(6);
+		mAnalyzer.loadFeatureVectors();
 		
 		mAnalyzer.setSearchLogFile(FRoot._file_UsedSearchLog);
 		mAnalyzer.loadSearchLog();

@@ -3,7 +3,8 @@ package org.archive.rms.data;
 import java.util.ArrayList;
 
 public class BingQSession1 {
-	//separated by " "; the original format is: //i.e., serial number of acceptedSessions; userid ; rguid
+	//the original format is: serial number of acceptedSessions; userid ; rguid
+	//separated by " "; 
 	String _UserID_Rguid;
 	String _queryText;
 	

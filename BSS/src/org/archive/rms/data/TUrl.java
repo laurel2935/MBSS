@@ -11,8 +11,8 @@ public class TUrl {
 	////context information
 	//number of prior clicks
 	int _priorClicks;
-	//distance to last click
-	int _disToLastClick;
+	//distance to last click, using a tiny value to indicate being the first click
+	double _disToLastClick;
 	
 	int _gTruthClick;
 	String _clickTime;
@@ -63,7 +63,7 @@ public class TUrl {
 		this._releValue = releVal;
 	}
 	
-	public void setContextInfor(int priorClicks, int disToLastClick){
+	public void setContextInfor(int priorClicks, double disToLastClick){
 		this._priorClicks = priorClicks;
 		this._disToLastClick = disToLastClick;
 	}
@@ -76,7 +76,7 @@ public class TUrl {
 		return this._priorClicks;
 	}
 	
-	public int getDisToLastClick(){
+	public double getDisToLastClick(){
 		return this._disToLastClick;
 	}
 }

@@ -16,6 +16,7 @@ public class TQuery {
 	//
 	public enum MarStyle {MIN, AVG, MAX};
 	
+	//serial number of acceptedSessions; userid ; rguid
 	String _key;
 	String _UserID;
 	String _queryText;
@@ -73,9 +74,16 @@ public class TQuery {
 			TUrl tUrl = this._urlList.get(rankI-1);
 			
 			int priorClicks = this.getPriorClicks(rankI).size();
-			int disToLastClick = this.getPriorClickPosition(rankI);
+			int priorClickPos = this.getPriorClickPosition(rankI);
 			
-			tUrl.setContextInfor(priorClicks, disToLastClick);
+			double disToPriorClick;
+			if(0 == priorClickPos){
+				disToPriorClick = MClickModel.EPSILON;
+			}else {
+				disToPriorClick = rankI-priorClickPos;
+			}
+			
+			tUrl.setContextInfor(priorClicks, disToPriorClick);
 		}
 	}
 	
@@ -94,19 +102,24 @@ public class TQuery {
 		for(int rank=secondC; rank<=_urlList.size(); rank++){
 			if(_gTruthClickSequence.get(rank-1)){
 				ArrayList<Double> marFeatureVec = new ArrayList<>();
+				
+				//marginal features based on 3-dimension tensor
 				double [] partialMarFeatureVector = calPartialMarFeature(rank, MClickModel._defaultMarStyle);
 				for(int i=0; i<partialMarFeatureVector.length; i++){
 					marFeatureVec.add(partialMarFeatureVector[i]);
 				}
-				//context features
 				
+				//marginal features based on context information				
 				TUrl tUrl = _urlList.get(rank-1);
+				//rankPosition
 				int ctxt_RPos = tUrl.getRankPosition();
 				marFeatureVec.add((double)ctxt_RPos);
+				//number of prior clicks
 				int ctxt_PriorClicks = tUrl.getPriorClicks();
 				marFeatureVec.add((double)ctxt_PriorClicks);
-				int ctxt_DisToLastClick = tUrl.getDisToLastClick();
-				marFeatureVec.add((double)ctxt_DisToLastClick);				
+				//distance to prior click
+				double ctxt_DisToLastClick = tUrl.getDisToLastClick();
+				marFeatureVec.add(ctxt_DisToLastClick);				
 				
 				_gTruthBasedMarFeatureList.add(marFeatureVec);				
 			}else {
@@ -336,6 +349,10 @@ public class TQuery {
 	}
 	
 	//
+	public void setGTruthClickSequence(ArrayList<Boolean> gTruthClickSequence){
+		this._gTruthClickSequence = gTruthClickSequence;
+	}
+	//
 	public void setCumuVals(ArrayList<Double>  gTruthBasedCumuUtilityList){
 		this._gTruthBasedCumuUtilityList = gTruthBasedCumuUtilityList;
 	}
@@ -417,7 +434,7 @@ public class TQuery {
 		ArrayList<Integer> priorClicks = new ArrayList<>();
 		for(int iRank=1; iRank<kRank; iRank++){
 			if(_gTruthClickSequence.get(iRank-1)){
-				priorClicks.add((iRank));
+				priorClicks.add(iRank);
 			}
 		}
 		return priorClicks;

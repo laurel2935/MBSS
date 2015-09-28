@@ -15,6 +15,9 @@ import optimizer.LBFGS.ExceptionWithIflag;
 
 /**
  * The basic structure required within the marginal utility based framework
+ * 
+ * Underlying association:
+ * (1) Premise: for the input of "ArrayList<TUser> userList", all the required rele-features and mar-features are loaded 
  * **/
 
 public class MClickModel{
@@ -49,7 +52,7 @@ public class MClickModel{
 	//int _releFeatureLength;
 	//int _marFeatureLength;
 	//combined parameter vector corresponding to both utility and marginal utility
-	//i.e., _rele_mar_weights.length = _releFeatureLength+_marFeatureLength;
+	//i.e., _rele_mar_weights.length = _releFeatureLength + _marFeatureLength;
 	private double [] _rele_mar_weights;	
 	
 	//
@@ -72,6 +75,12 @@ public class MClickModel{
 		
 		int defaultMaxItr = 50;
 		
+		System.out.println("Parameters Before Optimizing:");
+		for(double w: _rele_mar_weights){
+			System.out.print(w+"\t");
+		}
+		System.out.println();
+		
 		try {
 			
 			optimize(defaultMaxItr);
@@ -81,6 +90,11 @@ public class MClickModel{
 			e.printStackTrace();
 		}
 		
+		System.out.println("Parameters After Optimizing:");
+		for(double w: _rele_mar_weights){
+			System.out.print(w+"\t");
+		}
+		System.out.println();
 	}
 	
 	/**
@@ -90,7 +104,9 @@ public class MClickModel{
 		//1
 		for(TUser tUser: this._userList){
 			for(TQuery tQuery: tUser.getQueryList()){
+				//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently
 				tQuery.calContextInfor();
+				
 				tQuery.calMarFeatureList();
 			}
 		}
@@ -162,7 +178,7 @@ public class MClickModel{
 	private void refresh(){
 		for(TUser tUser: this._userList){
 			for(TQuery tQuery: tUser.getQueryList()){
-				calQSessionPro(tQuery);
+				calQSessionSatPros(tQuery);
 			}
 		}		
 	}
@@ -281,16 +297,16 @@ public class MClickModel{
 				double [] marFeatureVector = tQuery.getMarFeature(kRank);
 
 				/*
-				double [] marFeatureVector = new double [IAccessor._marFeatureLength];
-				for(int i=0; i<marFeatureVector_part1.length; i++){
-					marFeatureVector [i] = marFeatureVector_part1[i];
-				}
-				
-				TUrl tUrl = tQuery.getUrlList().get(kRank-1);
-				int st = marFeatureVector_part1.length;
-				marFeatureVector [st] = tUrl.getRankPosition();
-				marFeatureVector [st+1] = tUrl.getPriorClicks();
-				marFeatureVector [st+2] = tUrl.getDisToLastClick();
+//				double [] marFeatureVector = new double [IAccessor._marFeatureLength];
+//				for(int i=0; i<marFeatureVector_part1.length; i++){
+//					marFeatureVector [i] = marFeatureVector_part1[i];
+//				}
+//				
+//				TUrl tUrl = tQuery.getUrlList().get(kRank-1);
+//				int st = marFeatureVector_part1.length;
+//				marFeatureVector [st] = tUrl.getRankPosition();
+//				marFeatureVector [st+1] = tUrl.getPriorClicks();
+//				marFeatureVector [st+2] = tUrl.getDisToLastClick();
 				*/
 				
 				double dotProVal = dotProduct(marFeatureVector, marParas);
@@ -345,7 +361,7 @@ public class MClickModel{
 	/**
 	 * this process includes all above calculations
 	 * **/
-	private void calQSessionPro(TQuery tQuery) {
+	private void calQSessionSatPros(TQuery tQuery) {
 		calGTruthBasedSatPros(tQuery);
 	}	
 	//////////
