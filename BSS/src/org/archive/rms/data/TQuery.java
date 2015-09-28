@@ -2,6 +2,7 @@ package org.archive.rms.data;
 
 import java.util.ArrayList;
 
+import org.archive.access.feature.IAccessor;
 import org.archive.access.utility.SimpleTensor;
 import org.archive.rms.MClickModel;
 import org.ejml.simple.SimpleMatrix;
@@ -36,6 +37,7 @@ public class TQuery {
 	
 	public TQuery(BingQSession1 bingQSession){
 		this._urlList = new ArrayList<>();
+		this._gTruthClickSequence = new ArrayList<>();
 		
 		//ini
 		this._key = bingQSession.getKey();
@@ -54,11 +56,27 @@ public class TQuery {
 			
 			TUrl tUrl = new TUrl(urlStr, rankPosition, gTruthClick, htmlAvailable);
 			this._urlList.add(tUrl);
+			
+			this._gTruthClickSequence.add(gTruthClick>0?true:false);
 		}		
 	}
 		
 	public void adjustUrlList(ArrayList<TUrl> adjustedUrlList){
 		this._urlList = adjustedUrlList;
+	}
+	
+	/**
+	 * compute context information for each TUrl, the adjustment should be finished if needed
+	 * **/
+	public void calContextInfor(){
+		for(int rankI=1; rankI<=this._urlList.size(); rankI++){
+			TUrl tUrl = this._urlList.get(rankI-1);
+			
+			int priorClicks = this.getPriorClicks(rankI).size();
+			int disToLastClick = this.getPriorClickPosition(rankI);
+			
+			tUrl.setContextInfor(priorClicks, disToLastClick);
+		}
 	}
 	
 	/**
@@ -76,10 +94,20 @@ public class TQuery {
 		for(int rank=secondC; rank<=_urlList.size(); rank++){
 			if(_gTruthClickSequence.get(rank-1)){
 				ArrayList<Double> marFeatureVec = new ArrayList<>();
-				double [] marFeatureVector = calMarFeature(rank, MClickModel._defaultMarStyle);
-				for(int i=0; i<marFeatureVector.length; i++){
-					marFeatureVec.add(marFeatureVector[i]);
+				double [] partialMarFeatureVector = calPartialMarFeature(rank, MClickModel._defaultMarStyle);
+				for(int i=0; i<partialMarFeatureVector.length; i++){
+					marFeatureVec.add(partialMarFeatureVector[i]);
 				}
+				//context features
+				
+				TUrl tUrl = _urlList.get(rank-1);
+				int ctxt_RPos = tUrl.getRankPosition();
+				marFeatureVec.add((double)ctxt_RPos);
+				int ctxt_PriorClicks = tUrl.getPriorClicks();
+				marFeatureVec.add((double)ctxt_PriorClicks);
+				int ctxt_DisToLastClick = tUrl.getDisToLastClick();
+				marFeatureVec.add((double)ctxt_DisToLastClick);				
+				
 				_gTruthBasedMarFeatureList.add(marFeatureVec);				
 			}else {
 				_gTruthBasedMarFeatureList.add(null);
@@ -90,7 +118,7 @@ public class TQuery {
 	/**
 	 * 
 	 * **/
-	private double [] calMarFeature(int kRank, MarStyle marStyle) {
+	private double [] calPartialMarFeature(int kRank, MarStyle marStyle) {
 		ArrayList<Integer> priorClicks = getPriorClicks(kRank);
 		if(marStyle == MarStyle.MIN){
 			return calMarFeature_Min(kRank, priorClicks);
@@ -264,7 +292,8 @@ public class TQuery {
 		int lastC =  getLastClickPosition();
 		
 		if(firstC < lastC){
-			int len = this._marTensor.numSlices();
+			//int len = this._marTensor.numSlices();
+			int len = IAccessor._marFeatureLength;
 			
 			double firstC_releVal = this._urlList.get(firstC-1).getReleValue();
 			//part-1
@@ -314,7 +343,10 @@ public class TQuery {
 	public void setGTruthBasedSatPros(ArrayList<Double> gTruthBasedSatProList){
 		this._gTruthBasedSatProList = gTruthBasedSatProList;
 	}
-	
+	//
+	public void setMarTensor(SimpleTensor marTensor){
+		this._marTensor = marTensor;
+	}
 	
 	public String getUserID(){
 		return this._UserID;
@@ -356,7 +388,7 @@ public class TQuery {
 		return 0;
 	}
 	/**
-	 * 
+	 * the rank position of previous click
 	 * **/
 	public int getPriorClickPosition(int refRank){
 		for(int cRank=refRank-1; cRank>=1; cRank--){

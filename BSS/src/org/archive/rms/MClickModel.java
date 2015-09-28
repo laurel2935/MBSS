@@ -3,6 +3,7 @@ package org.archive.rms;
 import java.util.ArrayList;
 import java.util.Random;
 
+import org.archive.access.feature.IAccessor;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUser;
 import org.archive.rms.data.TQuery.MarStyle;
@@ -44,8 +45,9 @@ public class MClickModel{
 	//private double[] _m_weights;
 	//private double[] _optimal_m_weights;
 	
-	int _releFeatureLength;
-	int _marFeatureLength;
+	//
+	//int _releFeatureLength;
+	//int _marFeatureLength;
 	//combined parameter vector corresponding to both utility and marginal utility
 	//i.e., _rele_mar_weights.length = _releFeatureLength+_marFeatureLength;
 	private double [] _rele_mar_weights;	
@@ -88,6 +90,7 @@ public class MClickModel{
 		//1
 		for(TUser tUser: this._userList){
 			for(TQuery tQuery: tUser.getQueryList()){
+				tQuery.calContextInfor();
 				tQuery.calMarFeatureList();
 			}
 		}
@@ -97,7 +100,7 @@ public class MClickModel{
 	
 	private void iniWeightVector(){
 		
-		_rele_mar_weights =new double[_releFeatureLength+_marFeatureLength];
+		_rele_mar_weights =new double[IAccessor._releFeatureLength+IAccessor._marFeatureLength];
 		
 		double defaultScale = 50;
 		
@@ -144,7 +147,9 @@ public class MClickModel{
 
 			} catch (ExceptionWithIflag ex){
 				System.err.println("[Warning]M-step cannot proceed!");
-			}		
+			}	
+			
+			System.out.println("..."+iter);
 			
 		}while(iflag[0]>0 && ++iter<maxIter);
 	}
@@ -184,33 +189,36 @@ public class MClickModel{
 	 * **/
 	private void calFunctionGradient(double[] g){		
 		//rele part
-		double [] total_rele_parGradient = new double[_releFeatureLength];
+		double [] total_rele_parGradient = new double[IAccessor._releFeatureLength];
 		for(TUser tUser: _userList){
 			for(TQuery tQuery: tUser.getQueryList()){
 				double [] rele_parGradient = tQuery.calRelePartialGradient();
-				for(int i=0; i<_releFeatureLength; i++){
+				for(int i=0; i<IAccessor._releFeatureLength; i++){
 					total_rele_parGradient[i] += rele_parGradient[i];
 				}
 			}
 		}
 		
-		for(int i=0; i<_releFeatureLength; i++){
+		for(int i=0; i<IAccessor._releFeatureLength; i++){
 			g[i] = total_rele_parGradient[i];
 		}
 		
 		//mar part
-		double [] total_mar_parGradient = new double[_marFeatureLength];
+		double [] total_mar_parGradient = new double[IAccessor._marFeatureLength];
 		for(TUser tUser: _userList){
 			for(TQuery tQuery: tUser.getQueryList()){
 				double [] mar_parGradient = tQuery.calMarPartialGradient();
-				for(int j=0; j<_marFeatureLength; j++){
+				
+				for(int j=0; j<IAccessor._marFeatureLength; j++){
 					total_mar_parGradient[j] += mar_parGradient[j];
-				}
+				}				
 			}
 		}
 		
-		for(int j=0; j<_marFeatureLength; j++){
-			g[_releFeatureLength+j] = total_mar_parGradient[j];
+		//context part
+		
+		for(int j=0; j<IAccessor._marFeatureLength; j++){
+			g[IAccessor._releFeatureLength+j] = total_mar_parGradient[j];
 		}		
 	}
 	
@@ -222,8 +230,8 @@ public class MClickModel{
 	 * Exponential function based relevance function 
 	 * **/
 	private void calReleVal(TUrl tUrl){
-		double [] releParas = new double [_releFeatureLength];
-		for(int i=0; i<_releFeatureLength; i++){
+		double [] releParas = new double [IAccessor._releFeatureLength];
+		for(int i=0; i<IAccessor._releFeatureLength; i++){
 			releParas[i] = _rele_mar_weights[i];
 		}
 		
@@ -258,14 +266,33 @@ public class MClickModel{
 		//firstC utility=marginal utility
 		gTruthBasedMarValList.add(tQuery.getUrlList().get(firstC-1).getReleValue());
 		
-		double []marParas = new double [_marFeatureLength];
-		for(int i=0; i<_marFeatureLength; i++){
-			marParas[i] = _rele_mar_weights[_releFeatureLength+i];
+		double []marParas = new double [IAccessor._marFeatureLength];
+		for(int i=0; i<IAccessor._marFeatureLength; i++){
+			marParas[i] = _rele_mar_weights[IAccessor._releFeatureLength+i];
 		}
+		
+		//url-specific context information
+		//tQuery.calContextInfor();
 		
 		for(int kRank=firstC+1; kRank<=gTruthClickSeq.size(); kRank++){
 			if(gTruthClickSeq.get(kRank-1)){
+				//without context information
+				//double [] marFeatureVector_part1 = tQuery.getMarFeature(kRank);
 				double [] marFeatureVector = tQuery.getMarFeature(kRank);
+
+				/*
+				double [] marFeatureVector = new double [IAccessor._marFeatureLength];
+				for(int i=0; i<marFeatureVector_part1.length; i++){
+					marFeatureVector [i] = marFeatureVector_part1[i];
+				}
+				
+				TUrl tUrl = tQuery.getUrlList().get(kRank-1);
+				int st = marFeatureVector_part1.length;
+				marFeatureVector [st] = tUrl.getRankPosition();
+				marFeatureVector [st+1] = tUrl.getPriorClicks();
+				marFeatureVector [st+2] = tUrl.getDisToLastClick();
+				*/
+				
 				double dotProVal = dotProduct(marFeatureVector, marParas);
 				double marVal = Math.exp(dotProVal);
 				gTruthBasedMarValList.add(marVal);

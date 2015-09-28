@@ -17,6 +17,7 @@ import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 import org.archive.rms.data.TUser;
 import org.archive.util.io.IOText;
+import org.archive.util.tuple.Triple;
 import org.ejml.simple.SimpleMatrix;
 
 
@@ -39,7 +40,7 @@ public class MAnalyzer {
 	//filtering sessions
 	int _threshold_UnavailableHtml_NonClickedUrl = 0;
 	int _threshold_UnavailableHtml_ClickedUrl    = 0;
-	int _totalAcceptedSessions;
+	int _totalAcceptedSessions = 10778;
 	
 	protected ArrayList<TUser> _userList;
 	
@@ -55,16 +56,20 @@ public class MAnalyzer {
 	IAccessor _iAccessor;
 	//= new IAccessor(DocStyle.ClickText, false, true);
 	
-	MAnalyzer(){
+	MAnalyzer(boolean ini){
+		
+		if(ini){
+			_iAccessor = new IAccessor(DocStyle.ClickText);
+		}
 		
 	}
 	
 	//////////
 	//Necessary for click-model training & testing
 	//////////
-	public void loadFeatureVectors(int rowNum, int sliceNum){
+	public void loadFeatureVectors(int sliceNum){
 		key2ReleFeatureMap = loadRFeatureVectors();
-		key2MarFeatureMap = loadMarFeatureVectors(rowNum, sliceNum);
+		key2MarFeatureMap = loadMarFeatureVectors(sliceNum);
 	}
 	//////////
 	//for pre-buffering
@@ -95,8 +100,24 @@ public class MAnalyzer {
 			}
 		}
 		
-		HashMap<String, TUser> tUserMap = new HashMap<>();		
+		HashMap<String, TUser> tUserMap = new HashMap<>();
+		
+		boolean check = true;
+		int usedCount = 0;
+		
+		System.out.println(key2MarFeatureMap.size());
+		
 		for(TQuery tQuery: tQueryList){
+			
+			String str = tQuery.getKey()+":"+tQuery.getQueryText();
+			
+			if(check){
+				if(!key2MarFeatureMap.containsKey(str)){
+					continue;
+				}
+				usedCount++;
+			}			
+			
 			String userID = tQuery.getUserID();
 			
 			if(tUserMap.containsKey(userID)){
@@ -118,6 +139,7 @@ public class MAnalyzer {
 		this._userList = tUserList;		
 		
 		System.out.println(_totalAcceptedSessions);
+		System.out.println("Used sessions:\t"+usedCount);
 	}
 	
 	protected void bufferAcceptedSessions(ArrayList<TUser> tUserList) {
@@ -133,6 +155,9 @@ public class MAnalyzer {
 			for(TUser tUser: tUserList){
 				ArrayList<TQuery> queryList = tUser.getQueryList();
 				for(TQuery tQuery: queryList){
+					
+					//tQuery.calContextInfor();
+					
 					sessionWriter.write(QSessionLine+":"
 										+(count++)+":"
 										+tQuery.getKey()+":"
@@ -194,7 +219,37 @@ public class MAnalyzer {
 			}
 		}		
 	}
-
+	
+	
+	protected void iniClickModel() {
+		
+		for(TUser tUser: _userList){
+			for(TQuery tQuery: tUser.getQueryList()){
+				//System.out.println(tQuery.getKey());
+				tQuery.setMarTensor(key2MarFeatureMap.get(tQuery.getKey()+":"+tQuery.getQueryText()));
+				
+				for(TUrl tUrl: tQuery.getUrlList()){
+					tUrl.setReleFeatureVector(toDArray(key2ReleFeatureMap.get(tUrl.getDocNo()+":"+tQuery.getQueryText())));
+				}				
+			}
+		}
+				
+		_mClickModel = new MClickModel(_userList);		
+		
+		_mClickModel.train();
+	}
+	
+	private double [] toDArray(ArrayList<Double> dArrayList){
+		double [] dArray = new double [dArrayList.size()];
+		for(int i=0; i<dArrayList.size(); i++){
+			dArray[i] = dArrayList.get(i);
+		}
+		return dArray;
+	}
+	
+	/**
+	 * 
+	 * **/
 	class SimQSession{
 		////userID_Rguid: serial number of acceptedSessions; userid ; rguid
 		String _key;
@@ -210,7 +265,7 @@ public class MAnalyzer {
 		public void addDoc(String docNo){
 			this._docNoList.add(docNo);
 		}
-		
+				
 		public String getQueryText(){
 			return this._queryText;
 		}
@@ -223,6 +278,7 @@ public class MAnalyzer {
 			return this._docNoList;
 		}
 	}
+	
 	protected ArrayList<SimQSession> loadAcceptedSessions() {
 		String simSessionFile = _fRoot._bufferDir+"SimplifiedSessions"
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_ClickedUrl)
@@ -255,7 +311,9 @@ public class MAnalyzer {
 					}						
 				}else{
 					if(null != simQSession){
-						simQSession.addDoc(line);
+						//String [] parts = line.split(":");					 	
+						//docno
+						simQSession.addDoc(line);											
 					}
 				}
 			}
@@ -266,6 +324,8 @@ public class MAnalyzer {
 			// TODO: handle exception
 			e.printStackTrace();
 		}
+		
+		System.out.println("Loaded number:\t"+simQSessionList.size());
 		
 		return simQSessionList;		
 	}
@@ -331,8 +391,20 @@ public class MAnalyzer {
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_NonClickedUrl)
 				+"_"+Integer.toString(this._totalAcceptedSessions)+".txt";
 		try {
-			BufferedWriter mFeatureWriter = IOText.getBufferedWriter_UTF8(targetFile);	
-			for(SimQSession simQSession: simQSessionList){
+			BufferedWriter mFeatureWriter = IOText.getBufferedWriter_UTF8(targetFile);
+			
+			boolean check = true;
+			int threshold;
+			if(check){
+				threshold = Math.min(10, simQSessionList.size());
+			}else {
+				threshold = simQSessionList.size();
+			}			
+			
+			for(int i=0; i<threshold; i++){
+				
+				SimQSession simQSession = simQSessionList.get(i);
+				
 				String qText = simQSession.getQueryText();
 				ArrayList<String> docNoList = simQSession.getDocList();
 				SimpleTensor mTensor = _iAccessor.getMFeature(false, _iAccessor.getDocStyle(), qText, docNoList);
@@ -380,7 +452,7 @@ public class MAnalyzer {
 		return strBuffer.toString();
 	}
 	
-	public HashMap<String, SimpleTensor> loadMarFeatureVectors(int rowNum, int sliceNum){
+	public HashMap<String, SimpleTensor> loadMarFeatureVectors(int sliceNum){
 		String targetFile = _fRoot._bufferDir+"MarginalRelevanceFeatureVectors"
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_ClickedUrl)
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_NonClickedUrl)
@@ -391,7 +463,7 @@ public class MAnalyzer {
 		try {
 			ArrayList<String> lineList = IOText.getLinesAsAList_UTF8(targetFile);
 			
-			key2MarFeatureMap = IAccessor.loadMarTensor(rowNum, sliceNum, lineList);
+			key2MarFeatureMap = IAccessor.loadMarTensor(sliceNum, lineList);
 			
 		} catch (Exception e) {
 			// TODO: handle exception
@@ -405,9 +477,7 @@ public class MAnalyzer {
 	//////////
 	//Preliminary steps
 	//////////
-	//1 get simplified QSessions
-	//之前需完成(1)下载数据检验; (2) set of urls w.r.t. htmlAccessible ones
-	//后期起参考总用: e.g., for buffering feature vectors
+	//1 get simplified QSessions, which is the basis step for buffering feature vectors
 	/**
 	 * required lines: 
 	 * MAnalyzer(int threshold_UnavailableHtml_NonClickedUrl, int threshold_UnavailableHtml_ClickedUrl){}
@@ -425,15 +495,49 @@ public class MAnalyzer {
 	
 	public void bufferFeatureVectors(){
 		ArrayList<SimQSession> simQSessionList = loadAcceptedSessions();
-		bufferReleFeature(simQSessionList);
+		//for test
+		//SimQSession sQSession = simQSessionList.get(0);
+		//System.out.println(sQSession._docNoList);
+		
+		//buffer-1
+		//bufferReleFeature(simQSessionList);
+		
+		//buffer-2
 		bufferMarFeature(simQSessionList);
 	}
 	
 	
 	public static void main(String []args){
-		//1
+		//1 test
+		/*
 		MAnalyzer mAnalyzer = new MAnalyzer();
 		mAnalyzer.setSearchLogFile(FRoot._file_UsedSearchLog);
 		mAnalyzer.loadSearchLog();
+		*/
+		
+		//2 step-1
+		//requirements: (1) set of urls derived from extracted text files
+		/*
+		MAnalyzer mAnalyzer = new MAnalyzer(false);
+		mAnalyzer.setSearchLogFile(FRoot._file_UsedSearchLog);
+		mAnalyzer.getSimplifiedQSessions();
+		*/
+		
+		//3 step-2
+		// buffer rele and mar features
+		/*
+		MAnalyzer mAnalyzer = new MAnalyzer(true);
+		mAnalyzer.bufferFeatureVectors();
+		*/
+		
+		//4 step-3
+		MAnalyzer mAnalyzer = new MAnalyzer(false);
+		mAnalyzer.loadFeatureVectors(6);
+		
+		mAnalyzer.setSearchLogFile(FRoot._file_UsedSearchLog);
+		mAnalyzer.loadSearchLog();
+		
+		mAnalyzer.iniClickModel();
+		
 	}
 }
