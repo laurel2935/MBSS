@@ -8,12 +8,17 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.archive.access.feature.FRoot;
 import org.archive.access.feature.HtmlPlainText;
 import org.archive.access.feature.IAccessor;
+import org.archive.access.feature.TextCollection;
+import org.archive.access.index.DocData;
+import org.archive.nicta.kernel.LDAKernel;
+import org.archive.nicta.kernel.TFIDF_A1;
 import org.archive.rms.MAnalyzer;
 import org.archive.util.io.IOText;
 import org.htmlparser.NodeFilter;
@@ -537,7 +542,7 @@ public class DataAccessor {
 	
 	//step-6: index files by TarIndexor in FLucene
 	
-	//buffer text for 
+	//buffer text for kernel usage
 	public static HashMap<String, HtmlPlainText> loadHtmlText(HashSet<String> htmlUrlSet){
 		HashMap<String, HtmlPlainText> docNo2HtmlPlainTextMap = new HashMap<>();
 		
@@ -545,7 +550,8 @@ public class DataAccessor {
 			File dirFile = new File(FRoot._textDataDir);	
 			ArrayList<File> fileList = new ArrayList<>();
 			getHtmlFiles(dirFile, fileList);
-			System.out.println("size:\t"+fileList.size());
+			
+			System.out.println("Number of plain text files:\t"+fileList.size());
 			
 			for(File file: fileList){
 				String fPath = file.getAbsolutePath();
@@ -568,6 +574,72 @@ public class DataAccessor {
 		
 		return docNo2HtmlPlainTextMap;		
 	}
+	
+	public static TextCollection getTextCollection(HashMap<String, HtmlPlainText> docNo2HtmlPlainTextMap){
+		HashSet<String> docNoSet = new HashSet<>();
+		HashMap<String, String> docNo2UrlMap = new HashMap<>();
+		HashMap<String, String> docNo2TitleMap = new HashMap<>();
+		HashMap<String, String> docNo2ContentMap = new HashMap<>();
+		
+		for(Entry<String, HtmlPlainText> entry: docNo2HtmlPlainTextMap.entrySet()){
+			String docNo = entry.getKey();
+			
+			String url = entry.getValue().getFieldText(DocData.ClickText_Field_2);
+			String title = entry.getValue().getFieldText(DocData.ClickText_Field_3);
+			String content = entry.getValue().getFieldText(DocData.ClickText_Field_4);
+			
+			docNoSet.add(docNo);
+			
+			docNo2UrlMap.put(docNo, url);
+			docNo2TitleMap.put(docNo, title);
+			docNo2ContentMap.put(docNo, content);
+		}
+		
+		TextCollection textCollection = new TextCollection(docNoSet, docNo2UrlMap, docNo2TitleMap, docNo2ContentMap);
+		
+		return textCollection;
+	}
+	
+	////kernel map
+	//1
+	public static HashMap<String, TFIDF_A1> getKernelMap_ClickText_TFIDF(TextCollection textCollection){		
+		
+		TFIDF_A1 tfidfKernel_url = new TFIDF_A1(textCollection._docNo2UrlMap, true);
+		tfidfKernel_url.initTonNDocs(textCollection._docNoSet);
+		
+		TFIDF_A1 tfidfKernel_title = new TFIDF_A1(textCollection._docNo2TitleMap, true);
+		tfidfKernel_title.initTonNDocs(textCollection._docNoSet);
+		
+		TFIDF_A1 tfidfKernel_content = new TFIDF_A1(textCollection._docNo2ContentMap, true);
+		tfidfKernel_content.initTonNDocs(textCollection._docNoSet);
+		
+		HashMap<String, TFIDF_A1> tfidfKernelMap = new HashMap<>();
+		tfidfKernelMap.put(DocData.ClickText_Field_2, tfidfKernel_url);
+		tfidfKernelMap.put(DocData.ClickText_Field_3, tfidfKernel_title);
+		tfidfKernelMap.put(DocData.ClickText_Field_4, tfidfKernel_content);
+		
+		return tfidfKernelMap;			
+	}
+	//2
+	public static HashMap<String, LDAKernel> getKernelMap_ClickText_LDA(TextCollection textCollection){
+		
+		LDAKernel ldaKernel_url = new LDAKernel(textCollection._docNo2UrlMap, 10, false, true);
+		ldaKernel_url.initTonNDocs(textCollection._docNoSet);
+		
+		LDAKernel ldaKernel_title = new LDAKernel(textCollection._docNo2TitleMap, 20, false, true);
+		ldaKernel_title.initTonNDocs(textCollection._docNoSet);
+		
+		LDAKernel ldaKernel_content = new LDAKernel(textCollection._docNo2ContentMap, 30, false, true);
+		ldaKernel_content.initTonNDocs(textCollection._docNoSet);
+		
+		HashMap<String, LDAKernel> ldaKernelMap = new HashMap<>();
+		ldaKernelMap.put(DocData.ClickText_Field_2, ldaKernel_url);
+		ldaKernelMap.put(DocData.ClickText_Field_3, ldaKernel_title);
+		ldaKernelMap.put(DocData.ClickText_Field_4, ldaKernel_content);
+		
+		return ldaKernelMap;			
+	}
+	
 	
 	//////////
 	//Part-2
