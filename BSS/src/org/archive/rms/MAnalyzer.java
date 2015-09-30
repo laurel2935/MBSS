@@ -5,6 +5,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Map.Entry;
 
 import org.archive.access.feature.FRoot;
@@ -33,6 +34,11 @@ import org.ejml.simple.SimpleMatrix;
  * **/
 
 public class MAnalyzer {
+	//--for extending
+	protected Random m_rand;
+	protected double _testRatio;
+	protected ArrayList<TQuery> _QSessionList;
+	//--
 	protected static FRoot _fRoot = new FRoot();
 	
 	public static final String NEWLINE = System.getProperty("line.separator");
@@ -62,14 +68,18 @@ public class MAnalyzer {
 	/**
 	 * @param ini true is for buffering features. once the features have been buffered, it should be false;
 	 * **/
-	MAnalyzer(boolean ini){
+	MAnalyzer(boolean ini, boolean fieldSpecificLDA, boolean useLoadedModel){
 		
 		if(ini){
-			_iAccessor = new IAccessor(DocStyle.ClickText);
+			_iAccessor = new IAccessor(DocStyle.ClickText, fieldSpecificLDA, useLoadedModel);
 		}
 		
 	}
 	
+	
+	protected MAnalyzer(double testRatio){
+		this._testRatio = testRatio;
+	}
 	//////////
 	//Necessary for click-model training & testing
 	//////////
@@ -78,6 +88,7 @@ public class MAnalyzer {
 		key2MarFeatureMap = loadMarFeatureVectors();
 		
 		//test
+		/*
 		//rele
 		System.out.println(key2ReleFeatureMap.size());
 		for(Entry<String, ArrayList<Double>> entry: key2ReleFeatureMap.entrySet()){
@@ -89,6 +100,7 @@ public class MAnalyzer {
 			System.out.println();
 			break;
 		}
+		*/
 		
 		/*
 		//marginal
@@ -403,14 +415,16 @@ public class MAnalyzer {
 			//avoid redo
 			HashSet<String> keySet = new HashSet<>();
 			
+			int i=1;
 			for(SimQSession simQSession: simQSessionList){
+				
+				System.out.println("Buffering rele-session-"+(i++));
+				
 				String qText = simQSession.getQueryText();
 				ArrayList<String> docNoList = simQSession.getDocList();
 				
-				for(String docNo: docNoList){
-					
-					String key = docNo+":"+qText+":";
-					
+				for(String docNo: docNoList){					
+					String key = docNo+":"+qText+":";					
 					if(!keySet.contains(key)){
 						keySet.add(key);
 						
@@ -511,6 +525,7 @@ public class MAnalyzer {
 			System.out.println("Buffering marginal features ...");
 			
 			for(int i=0; i<threshold; i++){
+				System.out.println("Buffering mar-session-"+i);
 				
 				SimQSession simQSession = simQSessionList.get(i);
 				
@@ -625,8 +640,10 @@ public class MAnalyzer {
 		//3 step-2
 		// buffer rele and mar features
 		///*
-		MAnalyzer mAnalyzer = new MAnalyzer(true);
-		mAnalyzer.bufferFeatureVectors(true);
+		boolean fieldSpecificLDA = true;
+		boolean useLoadedModel = false;
+		MAnalyzer mAnalyzer = new MAnalyzer(true, fieldSpecificLDA, useLoadedModel);
+		mAnalyzer.bufferFeatureVectors(false);
 		//*/
 		
 		//4 step-3
