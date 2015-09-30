@@ -14,7 +14,6 @@ import org.archive.rms.data.TUrl;
 
 
 /**
- * @author Hongning
  * Naive counting based click model (baseline)
  */
 public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
@@ -148,20 +147,38 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 			return m_prior + 0.5*m_rand.nextDouble();
 	}
 	
+	public double getSessionProb(TQuery tQuery){
+		ArrayList<TUrl> urlList = tQuery.getUrlList();
+		
+		double sessionProb = 1.0;		
+		for(int rankPos=1; rankPos<=urlList.size(); rankPos++){
+			TUrl tUrl = urlList.get(rankPos-1);
+			
+			if(tUrl.getGTruthClick() > 0){
+				double clickProb = getClickProb(tQuery, tUrl);				
+				sessionProb *= clickProb;
+			}			
+		}
+		
+		return sessionProb;	
+	}
+	
+	
+	
 	public static void main(String[] args) {
 		if (args[0].equals("ntest") && args.length!=6){
 			System.err.println("[Usage]ntest trainset maxUser testset results isBucket");
 			return;
 		}
 		
-		/*
+		///*
 		T_NaiveCM t_NaiveCM = new T_NaiveCM();
 		t_NaiveCM.LoadLogs(args[1], Integer.valueOf(args[2]));		
 		t_NaiveCM.doTrain();		
 		
 		t_NaiveCM.LoadLogs(args[3]);
 		t_NaiveCM.doTest(args[4], Boolean.valueOf(args[5]));
-		*/
+		//*/
 	}
 	
 //	public static void main(String[] args) {

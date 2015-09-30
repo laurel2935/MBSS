@@ -28,14 +28,20 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 		int m_click, m_skip;
 		//r:rank d:distance w.r.t. last click
 		int[][] m_click_rd, m_skip_rd;
+		//
+		int _size;
 		
-		_stat(){
+		_stat(int size){
 			m_click = 0;
 			m_skip = 0;
 			
+			_size = size;
+			
 			//for all positions
-			m_click_rd = new int[10][11];
-			m_skip_rd = new int[10][11];
+			//m_click_rd = new int[10][11];
+			//m_skip_rd = new int[10][11];
+			m_click_rd = new int[_size][_size+1];
+			m_skip_rd  = new int[_size][_size+1];
 		}
 	}
 	
@@ -62,6 +68,8 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 	
 	double m_alpha_init, m_gamma_init, m_mu_init;
 	
+	int _maxSize;
+	
 	T_UBM(double testRatio, double alpha, double gamma, double mu){
 		super(testRatio);
 		
@@ -70,12 +78,12 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 		m_mu_init = mu;
 	}
 	
-	_stat getStat(String query, String url, boolean add4miss){
+	_stat getStat(String query, String url, boolean add4miss, int size){
 		String key = query + "@" + url;
 		if (m_uq_stat.containsKey(key))
 			return m_uq_stat.get(key);
 		else if (add4miss) {
-			_stat s = new _stat();
+			_stat s = new _stat(size);
 			m_uq_stat.put(key, s);
 			return s;
 		} else
@@ -110,50 +118,12 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 	}
 	
 	private void getStats(){
-		_stat st;
-		TUrl url;
-		//initialize gamma
-		m_gamma = new double[10][11];
-		for(int i=0; i<m_gamma.length; i++)
-			Arrays.fill(m_gamma[i], m_gamma_init);
-		
+		int maxSize = 0;
 		//initialize structures
 		m_alpha = new HashMap<String, Double>();
 		m_mu = new HashMap<String, _pair>();
 		m_uq_stat = new HashMap<String, _stat>();
 		
-		//--
-		/*
-		for(User user:m_userlist){
-			for(Query query:user.m_queries){
-				if (query.m_query.contains("@"))
-					query.m_query = query.m_query.replace("@", "_");
-				
-				int lastclick = 0;
-				for(int i=0; i<query.m_urls.size(); i++){
-					getMu(query.m_query, true);//register the query
-					url = query.m_urls.get(i);
-					
-					//initialize parameters
-					getAlpha(query.m_query, url.m_URL, true);
-					
-					//get statistics
-					st = getStat(query.m_query, url.m_URL, true);
-					if (url.m_click>0){
-						st.m_click_rd[url.m_pos-1][url.m_pos-lastclick] ++;						
-						st.m_click ++;
-						
-						lastclick = url.m_pos;//update the last click
-					}
-					else{
-						st.m_skip ++;
-						st.m_skip_rd[url.m_pos-1][url.m_pos-lastclick] ++;
-					}
-				}
-			}
-		}
-		*/
-		//--
 		for(TQuery tQuery : _QSessionList){
 			String qText = tQuery.getQueryText();
 			//if (query.m_query.contains("@"))
@@ -161,15 +131,22 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 			
 			int lastclick = 0;
 			ArrayList<TUrl> urlList = tQuery.getUrlList();
+			
+			int size = urlList.size();	
+			if(size > maxSize){
+				maxSize = size;
+			}
+			
+			
 			for(int i=0; i<urlList.size(); i++){
 				getMu(qText, true);//register the query
-				url = urlList.get(i);
+				TUrl url = urlList.get(i);
 				
 				//initialize parameters
 				getAlpha(qText, url.getDocNo(), true);
 				
 				//get statistics
-				st = getStat(qText, url.getDocNo(), true);
+				_stat st = getStat(qText, url.getDocNo(), true, size);
 				int rankPos = url.getRankPosition();
 				if (url.getGTruthClick()>0){
 					st.m_click_rd[rankPos-1][rankPos-lastclick] ++;						
@@ -183,6 +160,14 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 				}
 			}
 		}
+		
+		//initialize gamma
+		m_gamma = new double[maxSize][maxSize+1];
+		for(int i=0; i<m_gamma.length; i++)
+			Arrays.fill(m_gamma[i], m_gamma_init);
+		
+		//
+		_maxSize = maxSize;
 	}
 	
 	public void EM(int iter, double tol){
@@ -194,7 +179,8 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 		_stat st;
 		_pair par;
 		double a, a_old, mu, gamma, diff=1;
-		double[][][] gamma_new = new double[10][11][2];
+		//double[][][] gamma_new = new double[10][11][2];
+		double[][][] gamma_new = new double[_maxSize][_maxSize+1][2];
 		String query;
 		int step = 0;
 		
@@ -206,13 +192,21 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 		    while (it.hasNext()) {
 		        Map.Entry<String, Double> alpha = it.next();
 		        query = alpha.getKey().split("@")[0];
+		        
 		        st = m_uq_stat.get(alpha.getKey());
+		        int size = st._size;
 		        
 		        a_old = alpha.getValue();
 		        mu = getMu(query, false);
 		        a = 0;
 		        
+		        /*
 		        for(int i=0; i<m_gamma.length; i++)
+		        	for(int j=1; j<=i+1; j++)//no zero distance
+		        		if (st.m_skip_rd[i][j]>0)
+		        			a += st.m_skip_rd[i][j]*a_old*(1.0-mu*m_gamma[i][j])/(1.0-a_old*mu*m_gamma[i][j]);
+		        */
+		        for(int i=0; i<size; i++)
 		        	for(int j=1; j<=i+1; j++)//no zero distance
 		        		if (st.m_skip_rd[i][j]>0)
 		        			a += st.m_skip_rd[i][j]*a_old*(1.0-mu*m_gamma[i][j])/(1.0-a_old*mu*m_gamma[i][j]);
@@ -229,12 +223,25 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 		    while (it.hasNext()) {
 		        Map.Entry<String, Double> alpha = it.next();
 		        query = alpha.getKey().split("@")[0];
+		        
 		        st = m_uq_stat.get(alpha.getKey());
+		        int size = st._size;
 		        
 		        a = alpha.getValue();
 		        mu = getMu(query, false);
 		        
+		        /*
 		        for(int i=0; i<m_gamma.length; i++){
+		        	for(int j=1; j<=i+1; j++){//no zero distance
+		        		if ((st.m_click_rd[i][j] + st.m_skip_rd[i][j])>0)
+			        	{
+			        		gamma_new[i][j][0] += st.m_click_rd[i][j] + st.m_skip_rd[i][j] * (1-a)*mu*m_gamma[i][j] / (1.0-a*mu*m_gamma[i][j]);
+			        		gamma_new[i][j][1] += st.m_click_rd[i][j] + st.m_skip_rd[i][j] * mu*(1-a*m_gamma[i][j]) / (1.0-a*mu*m_gamma[i][j]);
+			        	}
+		        	}
+		        }
+		        */
+		        for(int i=0; i<size; i++){
 		        	for(int j=1; j<=i+1; j++){//no zero distance
 		        		if ((st.m_click_rd[i][j] + st.m_skip_rd[i][j])>0)
 			        	{
@@ -270,11 +277,18 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 		        query = alpha.getKey().split("@")[0];
 		        a = alpha.getValue();
 		        
-		        st = m_uq_stat.get(alpha.getKey());	        
+		        st = m_uq_stat.get(alpha.getKey());	 
+		        int size = st._size;
 		        par = m_mu.get(query);
 		       
 				try{ 
+					/*
 			        for(int i=0; i<m_gamma.length; i++)
+			        	for(int j=1; j<=i+1; j++)//no zero distance
+			        		if ((st.m_click_rd[i][j] + st.m_skip_rd[i][j])>0) 
+			        			par.m_stat += st.m_skip_rd[i][j] * (1-a*m_gamma[i][j]) / (1-a*par.m_mu*m_gamma[i][j]) + st.m_click_rd[i][j]/par.m_mu;
+			        */
+					for(int i=0; i<size; i++)
 			        	for(int j=1; j<=i+1; j++)//no zero distance
 			        		if ((st.m_click_rd[i][j] + st.m_skip_rd[i][j])>0) 
 			        			par.m_stat += st.m_skip_rd[i][j] * (1-a*m_gamma[i][j]) / (1-a*par.m_mu*m_gamma[i][j]) + st.m_click_rd[i][j]/par.m_mu;
@@ -332,7 +346,31 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 			e.printStackTrace();
 		}
 	}
+	
+	@Override
+	public double getSessionProb(TQuery tQuery){
+		//one-time calculation
+		//tQuery.calContextInfor();
 		
+		String qText = tQuery.getQueryText();
+		ArrayList<TUrl> urlList = tQuery.getUrlList();
+		
+		double sessionProb = 1.0;
+		
+		for(int rankPos=1; rankPos<=urlList.size(); rankPos++){
+			TUrl tUrl = urlList.get(rankPos-1);
+			
+			if(tUrl.getGTruthClick() > 0){
+				double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);				
+				sessionProb *= (alpha_qu*m_gamma[rankPos-1][(int)tUrl.getDisToLastClick()-1]);
+			}			
+		}
+		
+		return sessionProb;		
+	}
+	
+	
+	
 //	public static void main(String[] args) {		
 //		UBM ubm = new UBM(0, 0.2, 0.5, 0.5);
 //		ubm.LoadLogs("Data/Bucket/urls_large_tmp.dat");

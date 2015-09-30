@@ -172,6 +172,25 @@ public class MAnalyzer {
 		this._rawSearchLogFile = rawSearchLogFile;
 	}
 	
+	protected void LoadLogs(){
+		ArrayList<BingQSession1> bingQSessionList = DataAccessor.loadSearchLog(_rawSearchLogFile);
+		
+		int sessionCount = 0;
+		ArrayList<TQuery> tQueryList = new ArrayList<>();
+		for(BingQSession1 bQSession: bingQSessionList){
+			TQuery tQuery = new TQuery(bQSession);
+			if(acceptSession(tQuery, true)){
+				tQueryList.add(tQuery);
+				sessionCount++;
+			}
+		}
+		
+		this._QSessionList.addAll(tQueryList);		
+		this._totalAcceptedSessions = sessionCount;	
+		
+		System.out.println("Total number of used sessions:\t"+_totalAcceptedSessions);
+	}
+	
 	/**
 	 * load the search query log, and initialize specific TQuery, TUrl, TUser, etc.
 	 * **/

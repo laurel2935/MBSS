@@ -23,6 +23,7 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 		
 		double[] m_ss_a;
 		double[] m_ss_s;
+		
 		_param(){
 			m_a = (1+m_rand.nextDouble())/50;
 			m_s = (1+m_rand.nextDouble())/50;
@@ -32,6 +33,7 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 		}
 	}
 	
+	//regarding the parameters (alpha,beta) for beta distribution 
 	double m_gamma, m_alpha_a, m_beta_a, m_alpha_s, m_beta_s;
 	HashMap<String, _param> m_urlTable;//query-document specific parameters
 	Random m_rand;
@@ -40,8 +42,12 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 		super(reserve);
 		
 		m_gamma = gamma;
+		
+		//beta distribution w.r.t. event:A
 		m_alpha_a = alpha_a;
 		m_beta_a = beta_a;
+		
+		//beta distribution w.r.t. event:S
 		m_alpha_s = alpha_s;
 		m_beta_s = beta_s;
 		
@@ -61,8 +67,11 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 		else 
 			return null;
 	}
+	
 	public void EM(int iter, double tol){
+		//
 		double[][] alpha = new double[11][2], beta = new double[11][2];//treiler for forward and backward
+		
 		alpha[0][0] = 0.0; alpha[0][1] = 1.0; 
 		
 		int uSize, c, step=0;
@@ -71,60 +80,14 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 		
 		while(step++<iter && diff>tol){
 			//E-step
-			//--
-			/*
-			for(User user:m_userlist){
-				for(Query query:user.m_queries){
-					uSize = query.m_urls.size();
-					beta[uSize][0] = 1.0; beta[uSize][1] = 1.0;//in case we have varying length of sessions
-					for(int i=0; i<uSize; i++){//alpha update
-						c = query.m_urls.get(i).m_click>0?1:0;
-						p = lookupURL(query.m_query, query.m_urls.get(i).m_URL, true);
-						
-						if (c==0){
-							alpha[i+1][0] = alpha[i][0] + alpha[i][1]*(1-p.m_a)*(1-m_gamma);
-							alpha[i+1][1] = alpha[i][1]*(1-p.m_a)*m_gamma;
-						} else {
-							alpha[i+1][0] = alpha[i][1]*(p.m_a*(1-m_gamma+p.m_s*m_gamma));
-							alpha[i+1][1] = alpha[i][1]*p.m_a*m_gamma*(1-p.m_s);
-						}
-					}
-					
-					for(int i=uSize; i>0; i--){//beta update
-						c = query.m_urls.get(i-1).m_click>0?1:0;
-						p = lookupURL(query.m_query, query.m_urls.get(i-1).m_URL, true);
-						
-						beta[i-1][0] = beta[i][0]*(1-c);
-						if (c==0)
-							beta[i-1][1] = beta[i][0]*((1-p.m_a)*(1-m_gamma)) + beta[i][1]*(1-p.m_a)*m_gamma;
-						else
-							beta[i-1][1] = beta[i][0]*(p.m_a*(1-m_gamma+p.m_s*m_gamma)) + beta[i][1]*p.m_a*m_gamma*(1-p.m_s);
-					}
-					
-					for(int i=0; i<uSize; i++){//sufficient statistics
-						URL url = query.m_urls.get(i);
-						c = url.m_click>0?1:0;
-						p = lookupURL(query.m_query, url.m_URL, true);
-						
-						p.m_ss_a[1] += 1;						
-						if (c>0){
-							p.m_ss_a[0] += 1;
-								
-							p.m_ss_s[0] += alpha[i+1][0] * beta[i+1][0] / beta[0][1] / ((1-m_gamma)/p.m_s + m_gamma);
-							p.m_ss_s[1] += 1; 
-						} else {
-							p.m_ss_a[0] += p.m_a * alpha[i][0] * beta[i][0] / beta[0][1];
-						}
-					}
-				}
-			}
-			*/
-			//--
 			for(TQuery tQuery : _QSessionList){
 				String qText = tQuery.getQueryText();
 				//uSize = query.m_urls.size();
 				ArrayList<TUrl> urlList = tQuery.getUrlList();
+				
 				uSize = urlList.size();
+				
+				//prior beta distribution with parameters (1,1)
 				beta[uSize][0] = 1.0; beta[uSize][1] = 1.0;//in case we have varying length of sessions
 				
 				//alpha
@@ -136,7 +99,10 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 					p = lookupURL(qText, url.getDocNo(), true);
 					
 					if (c==0){
+						//corresponds to equation page_10 in the paper appendix: e.g., one can easily derive the recursion formula:
+						//c=0, e=0, thus (1-p.m_a):c_(i+1)=0 (1-m_gamma):e_(i+1)=0
 						alpha[i+1][0] = alpha[i][0] + alpha[i][1]*(1-p.m_a)*(1-m_gamma);
+						//c=0, e=1, thus (1-p.m_a):c_(i+1)=0 m_gamma:e_(i+1)=1
 						alpha[i+1][1] = alpha[i][1]*(1-p.m_a)*m_gamma;
 					} else {
 						alpha[i+1][0] = alpha[i][1]*(p.m_a*(1-m_gamma+p.m_s*m_gamma));
@@ -209,6 +175,14 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 		else//totally a new one
 			return 2 * (m_alpha_a-1)/(m_alpha_a+m_beta_a-2) * (m_alpha_s-1)/(m_alpha_s+m_beta_s-2) + m_rand.nextDouble()/10;
 	}
+	
+	
+	public double getSessionProb(TQuery tQuery){
+		//due to the uncertainty of "2*"
+		return 0.0;
+	}
+	
+	
 	
 //	public static void main(String[] args) {
 //		if (args.length!=3){
