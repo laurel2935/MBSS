@@ -7,6 +7,7 @@ import optimizer.LBFGS;
 import optimizer.LBFGS.ExceptionWithIflag;
 
 import org.archive.access.feature.IAccessor;
+import org.archive.rms.clickmodels.T_Evaluation;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 
@@ -17,7 +18,7 @@ import cc.mallet.types.MatrixOps;
  * "Dupret, Georges, and Ciya Liao. "A model to estimate intrinsic document relevance from the clickthrough logs of a web search engine." WSDM. ACM, 2010."
  * **/
 
-public class EX_USM extends USMFrame {
+public class EX_USM extends USMFrame implements T_Evaluation{
 	
 	private double [] _rele_context_weights;
 	

@@ -14,5 +14,7 @@ public interface T_Evaluation {
 	
 	//public void setClicks(TQuery tQuery);
 	
-	public double getSessionProb(TQuery tQuery);
+	public double getSessionProb(TQuery tQuery, boolean onlyClicks);
+	
+	public double getTestCorpusProb(boolean onlyClicks);
 }

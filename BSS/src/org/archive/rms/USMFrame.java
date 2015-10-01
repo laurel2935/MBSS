@@ -5,11 +5,12 @@ import java.util.ArrayList;
 import optimizer.LBFGS;
 import optimizer.LBFGS.ExceptionWithIflag;
 
+import org.archive.rms.clickmodels.T_Evaluation;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 import org.archive.rms.data.TUser;
 
-public abstract class USMFrame {
+public abstract class USMFrame implements T_Evaluation{
 	//
 	public static final double EPSILON = 0.1;
 	
@@ -17,8 +18,11 @@ public abstract class USMFrame {
 	protected LBFGS _lbfgsOptimizer;
 	
 	protected double _testRatio;
+	//i.e., top-trainNum instances
 	protected int _trainNum;
+	//i.e., later-testNum instances
 	protected int _testNum;
+	
 	ArrayList<TQuery> _QSessionList;
 	
 	USMFrame(double testRatio, ArrayList<TQuery> QSessionList){
@@ -41,7 +45,6 @@ public abstract class USMFrame {
 	 * **/
 	protected abstract void ini();
 	protected abstract void iniWeightVector();
-	
 	/**
 	 * refresh based on new weights, or preliminary call after initializing the weights
 	 * e.g., for consistent refresh w.r.t. both gradient and objectiveFunction
@@ -95,6 +98,38 @@ public abstract class USMFrame {
 		outputParas();
 	}
 	
+	public double getTestCorpusProb(boolean onlyClick) {
+		if(!onlyClick){
+			System.err.println("USM-similar models only use clicks!");
+		}
+		
+		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);
+			calQSessionSatPros(tQuery);
+			
+			tQuery.calQSessionPro();
+		}
+		
+		double corpusLikelihood = 0.0;
+		
+		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);
+			double sessionPro = tQuery.getQSessionPro();
+			corpusLikelihood += Math.log(sessionPro);
+		}
+		//the higher the better
+		return corpusLikelihood;	
+	}
+	
+	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
+		tQuery.calQSessionPro();
+		
+		return tQuery.getQSessionPro();
+	}
+	
+	public double getClickProb(TQuery tQuery, TUrl tUrl){
+		return Double.NaN;
+	}
 	//////////
 	//
 	//////////

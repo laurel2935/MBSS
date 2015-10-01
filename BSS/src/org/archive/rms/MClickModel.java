@@ -64,7 +64,9 @@ public class MClickModel extends USMFrame{
 	MClickModel(double testRatio, ArrayList<TQuery> QSessionList){
 		super(testRatio, QSessionList);
 	}
-		
+	//////////
+	//Part: Optimization
+	//////////	
 	/**
 	 * initialize the parameters, i.e., the weights w.r.t. each feature.
 	 * **/
@@ -93,10 +95,7 @@ public class MClickModel extends USMFrame{
 			_rele_mar_weights [i] = (2*rand.nextDouble()-1)/defaultScale;
 		}
 	}
-	
-	//////////
-	//Part: Optimization
-	//////////	
+			
 	@Override
 	protected void optimize(int maxIter) throws ExceptionWithIflag{
 		
@@ -138,8 +137,6 @@ public class MClickModel extends USMFrame{
 			
 		}while(iflag[0]>0 && ++iter<maxIter);
 	}
-	
-	
 	/**
 	 * get the gradient for optimization
 	 * needs refresh
@@ -180,7 +177,9 @@ public class MClickModel extends USMFrame{
 			g[IAccessor._releFeatureLength+j] = total_mar_parGradient[j];
 		}		
 	}
-		
+	////
+	
+	
 	////////
 	//
 	////////
@@ -298,7 +297,7 @@ public class MClickModel extends USMFrame{
 		tQuery.setCumuVals(gTruthBasedCumuValList);
 	}
 		
-	
+	//
 	protected void outputParas(){
 		for(double w: _rele_mar_weights){
 			System.out.print(w+"\t");

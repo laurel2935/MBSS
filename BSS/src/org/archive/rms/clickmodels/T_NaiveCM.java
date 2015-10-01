@@ -147,22 +147,49 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 			return m_prior + 0.5*m_rand.nextDouble();
 	}
 	
-	public double getSessionProb(TQuery tQuery){
+	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
 		ArrayList<TUrl> urlList = tQuery.getUrlList();
 		
-		double sessionProb = 1.0;		
-		for(int rankPos=1; rankPos<=urlList.size(); rankPos++){
-			TUrl tUrl = urlList.get(rankPos-1);
-			
-			if(tUrl.getGTruthClick() > 0){
-				double clickProb = getClickProb(tQuery, tUrl);				
-				sessionProb *= clickProb;
-			}			
-		}
+		double sessionProb = 1.0;	
+		
+		if(onlyClicks){
+			for(int rankPos=1; rankPos<=urlList.size(); rankPos++){
+				TUrl tUrl = urlList.get(rankPos-1);
+				
+				if(tUrl.getGTruthClick() > 0){
+					double clickProb = getClickProb(tQuery, tUrl);				
+					sessionProb *= clickProb;
+				}			
+			}
+		}else{
+			for(int rankPos=1; rankPos<=urlList.size(); rankPos++){
+				TUrl tUrl = urlList.get(rankPos-1);
+				
+				if(tUrl.getGTruthClick() > 0){
+					double clickProb = getClickProb(tQuery, tUrl);				
+					sessionProb *= clickProb;
+				}else{
+					double clickProb = getClickProb(tQuery, tUrl);				
+					sessionProb *= (1-clickProb);
+				}			
+			}
+		}		
 		
 		return sessionProb;	
 	}
 	
+	@Override
+	public double getTestCorpusProb(boolean onlyClicks){
+		double corpusLikelihood = 0.0;
+		
+		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);
+			double session = getSessionProb(tQuery, onlyClicks);
+			corpusLikelihood += Math.log(session);
+		}
+		//the higher the better
+		return corpusLikelihood;		
+	}
 	
 	
 	public static void main(String[] args) {

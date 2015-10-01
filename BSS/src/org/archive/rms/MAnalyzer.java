@@ -37,6 +37,10 @@ public class MAnalyzer {
 	//--for extending
 	protected Random m_rand;
 	protected double _testRatio;
+	//i.e., top-trainNum instances
+	protected int _trainNum;
+	//i.e., later-testNum instances
+	protected int _testNum;
 	protected ArrayList<TQuery> _QSessionList;
 	//--
 	protected static FRoot _fRoot = new FRoot();
@@ -79,6 +83,9 @@ public class MAnalyzer {
 	
 	protected MAnalyzer(double testRatio){
 		this._testRatio = testRatio;
+		
+		this._testNum = (int)(this._QSessionList.size()*testRatio);
+		this._trainNum = this._QSessionList.size()-this._testNum;
 	}
 	//////////
 	//Necessary for click-model training & testing
@@ -130,9 +137,9 @@ public class MAnalyzer {
 			}
 		}
 				
-		_mClickModel = new MClickModel(_userList);		
+		//_mClickModel = new MClickModel(_userList);		
 		
-		_mClickModel.train();
+		//_mClickModel.train();
 	}
 	
 	private double [] toDArray(ArrayList<Double> dArrayList){

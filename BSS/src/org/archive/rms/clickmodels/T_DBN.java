@@ -177,9 +177,22 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 	}
 	
 	
-	public double getSessionProb(TQuery tQuery){
+	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
 		//due to the uncertainty of "2*"
 		return 0.0;
+	}
+	
+	@Override
+	public double getTestCorpusProb(boolean onlyClicks){
+		double corpusLikelihood = 0.0;
+		
+		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);
+			double session = getSessionProb(tQuery, onlyClicks);
+			corpusLikelihood += Math.log(session);
+		}
+		//the higher the better
+		return corpusLikelihood;		
 	}
 	
 	

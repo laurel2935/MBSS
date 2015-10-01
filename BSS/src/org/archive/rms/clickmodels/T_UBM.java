@@ -348,7 +348,7 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 	}
 	
 	@Override
-	public double getSessionProb(TQuery tQuery){
+	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
 		//one-time calculation
 		//tQuery.calContextInfor();
 		
@@ -357,16 +357,43 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 		
 		double sessionProb = 1.0;
 		
-		for(int rankPos=1; rankPos<=urlList.size(); rankPos++){
-			TUrl tUrl = urlList.get(rankPos-1);
-			
-			if(tUrl.getGTruthClick() > 0){
-				double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);				
-				sessionProb *= (alpha_qu*m_gamma[rankPos-1][(int)tUrl.getDisToLastClick()-1]);
-			}			
-		}
+		if(onlyClicks){
+			for(int rankPos=1; rankPos<=urlList.size(); rankPos++){
+				TUrl tUrl = urlList.get(rankPos-1);
+				
+				if(tUrl.getGTruthClick() > 0){
+					double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);				
+					sessionProb *= (alpha_qu*m_gamma[rankPos-1][(int)tUrl.getDisToLastClick()-1]);
+				}			
+			}
+		}else{//plus skips
+			for(int rankPos=1; rankPos<=urlList.size(); rankPos++){
+				TUrl tUrl = urlList.get(rankPos-1);
+				
+				if(tUrl.getGTruthClick() > 0){
+					double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);				
+					sessionProb *= (alpha_qu*m_gamma[rankPos-1][(int)tUrl.getDisToLastClick()-1]);
+				}else{
+					double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);				
+					sessionProb *= (1-alpha_qu*m_gamma[rankPos-1][(int)tUrl.getDisToLastClick()-1]);
+				}			
+			}
+		}		
 		
 		return sessionProb;		
+	}
+	
+	@Override
+	public double getTestCorpusProb(boolean onlyClicks){
+		double corpusLikelihood = 0.0;
+		
+		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);
+			double session = getSessionProb(tQuery, onlyClicks);
+			corpusLikelihood += Math.log(session);
+		}
+		//the higher the better
+		return corpusLikelihood;		
 	}
 	
 	
