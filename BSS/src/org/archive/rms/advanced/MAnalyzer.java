@@ -1,4 +1,4 @@
-package org.archive.rms;
+package org.archive.rms.advanced;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -84,6 +84,7 @@ public class MAnalyzer {
 	protected MAnalyzer(double testRatio, boolean useFeature){
 		this._testRatio = testRatio;
 		
+		this._QSessionList = new ArrayList<>();
 		//search log
 		LoadLog();
 				
@@ -92,17 +93,7 @@ public class MAnalyzer {
 				
 		//features
 		if(useFeature){
-			loadFeatureVectors();			
-			//
-			for(TQuery tQuery: this._QSessionList){
-				String qKey = tQuery.getKey()+":"+tQuery.getQueryText();
-				tQuery.setMarTensor(key2MarFeatureMap.get(qKey));
-				
-				for(TUrl tUrl: tQuery.getUrlList()){
-					String urlKey = tUrl.getDocNo()+":"+tQuery.getQueryText();
-					tUrl.setReleFeatureVector(toDArray(key2ReleFeatureMap.get(urlKey)));
-				}				
-			}
+			loadFeatureVectors();
 		}		
 	}
 	//////////
@@ -160,7 +151,7 @@ public class MAnalyzer {
 		//_mClickModel.train();
 	}
 	
-	private double [] toDArray(ArrayList<Double> dArrayList){
+	protected double [] toDArray(ArrayList<Double> dArrayList){
 		double [] dArray = new double [dArrayList.size()];
 		for(int i=0; i<dArrayList.size(); i++){
 			dArray[i] = dArrayList.get(i);
@@ -198,6 +189,8 @@ public class MAnalyzer {
 	}
 	
 	protected void LoadLog(){
+		setSearchLogFile(FRoot._file_UsedSearchLog);
+		
 		ArrayList<BingQSession1> bingQSessionList = DataAccessor.loadSearchLog(_rawSearchLogFile);
 		
 		int sessionCount = 0;
@@ -210,7 +203,7 @@ public class MAnalyzer {
 			}
 		}
 		
-		this._QSessionList.addAll(tQueryList);		
+		this._QSessionList.addAll(tQueryList);
 		this._totalAcceptedSessions = sessionCount;	
 		
 		System.out.println("Total number of used sessions:\t"+_totalAcceptedSessions);

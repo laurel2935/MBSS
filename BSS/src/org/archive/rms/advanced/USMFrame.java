@@ -1,4 +1,4 @@
-package org.archive.rms;
+package org.archive.rms.advanced;
 
 import java.util.ArrayList;
 
@@ -27,11 +27,11 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	
 	USMFrame(double testRatio){
 		super(testRatio, true);
-		this._testRatio = testRatio;
+		//this._testRatio = testRatio;
 		//this._QSessionList = QSessionList;
 		
-		this._testNum = (int)(this._QSessionList.size()*testRatio);
-		this._trainNum = this._QSessionList.size()-this._testNum;
+		//this._testNum = (int)(this._QSessionList.size()*testRatio);
+		//this._trainNum = this._QSessionList.size()-this._testNum;
 	}
 	
 	
@@ -96,34 +96,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 		outputParas();
 	}
 	
-	public double getTestCorpusProb(boolean onlyClick) {
-		if(!onlyClick){
-			System.err.println("USM-similar models only use clicks!");
-		}
-		
-		for(int k=this._testNum; k<this._QSessionList.size(); k++){
-			TQuery tQuery = this._QSessionList.get(k);
-			calQSessionSatPros(tQuery);
-			
-			tQuery.calQSessionPro();
-		}
-		
-		double corpusLikelihood = 0.0;
-		
-		for(int k=this._testNum; k<this._QSessionList.size(); k++){
-			TQuery tQuery = this._QSessionList.get(k);
-			double sessionPro = tQuery.getQSessionPro();
-			corpusLikelihood += Math.log(sessionPro);
-		}
-		//the higher the better
-		return corpusLikelihood;	
-	}
 	
-	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
-		tQuery.calQSessionPro();
-		
-		return tQuery.getQSessionPro();
-	}
 	
 	public double getClickProb(TQuery tQuery, TUrl tUrl){
 		return Double.NaN;

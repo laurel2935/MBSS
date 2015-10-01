@@ -11,7 +11,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-import org.archive.rms.MAnalyzer;
+import org.archive.rms.advanced.MAnalyzer;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 

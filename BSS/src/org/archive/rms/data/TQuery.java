@@ -4,7 +4,7 @@ import java.util.ArrayList;
 
 import org.archive.access.feature.IAccessor;
 import org.archive.access.utility.SimpleTensor;
-import org.archive.rms.MClickModel;
+import org.archive.rms.advanced.MClickModel;
 import org.ejml.simple.SimpleMatrix;
 
 /**
@@ -35,7 +35,7 @@ public class TQuery {
 	ArrayList<Double>  _gTruthBasedSatProList;
 	
 	//without marginal utility
-	ArrayList<ArrayList<Double>> _gTruthBasedReleFeatureList; 
+	//ArrayList<ArrayList<Double>> _gTruthBasedReleFeatureList; 
 	//w.r.t. marginal utility
 	ArrayList<ArrayList<Double>> _gTruthBasedMarFeatureList;
 	
@@ -135,6 +135,7 @@ public class TQuery {
 	}
 	
 	//mainly for framework without marginal concept
+	/*
 	public void calReleFeatureList(){
 		this._gTruthBasedReleFeatureList = new ArrayList<>();
 		
@@ -167,6 +168,7 @@ public class TQuery {
 			}
 		}
 	}
+	*/
 	
 	/**
 	 * 
@@ -380,7 +382,7 @@ public class TQuery {
 				ArrayList<Integer> priorRanks = getPriorClicks(cRank);
 				for(Integer priorRank: priorRanks){
 					for(int i=0; i<len; i++){
-						p2_seg_4[i] += (this._gTruthBasedReleValList.get(priorRank-1)*this._gTruthBasedReleFeatureList.get(priorRank-1).get(i));
+						p2_seg_4[i] += (this._gTruthBasedReleValList.get(priorRank-1)*this._urlList.get(priorRank-1).getReleFeatures()[i]);
 					}					
 				}				
 				//
@@ -400,7 +402,7 @@ public class TQuery {
 			ArrayList<Integer> priorRanks = getPriorClicks(lastC);
 			for(Integer priorRank: priorRanks){
 				for(int i=0; i<len; i++){
-					p3_seg_3[i] += (this._gTruthBasedReleValList.get(priorRank-1)*this._gTruthBasedReleFeatureList.get(priorRank-1).get(i));
+					p3_seg_3[i] += (this._gTruthBasedReleValList.get(priorRank-1)*this._urlList.get(priorRank-1).getReleFeatures()[i]);
 				}
 			}
 			//

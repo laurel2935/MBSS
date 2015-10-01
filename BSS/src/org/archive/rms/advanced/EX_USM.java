@@ -1,4 +1,4 @@
-package org.archive.rms;
+package org.archive.rms.advanced;
 
 import java.util.ArrayList;
 import java.util.Random;
@@ -36,11 +36,35 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 	@Override
 	protected void ini(){
 		//1
-		for(TQuery tQuery: this._QSessionList){
-			//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently
-			tQuery.calContextInfor();
+		for(TQuery tQuery: this._QSessionList){		
+			//context information
+			tQuery.calContextInfor();			
 			
-			tQuery.calReleFeatureList();
+			for(TUrl tUrl: tQuery.getUrlList()){
+				String urlKey = tUrl.getDocNo()+":"+tQuery.getQueryText();
+				
+				ArrayList<Double> releFeatureVec = new ArrayList<>();
+				
+				////former part
+				ArrayList<Double> partialReleFeatures = key2ReleFeatureMap.get(urlKey);
+				for(Double parF: partialReleFeatures){
+					releFeatureVec.add(parF);
+				}
+				
+				////later part
+				//context information
+				//1 rankPosition
+				int ctxt_RPos = tUrl.getRankPosition();
+				releFeatureVec.add((double)ctxt_RPos);
+				//2 number of prior clicks
+				int ctxt_PriorClicks = tUrl.getPriorClicks();
+				releFeatureVec.add((double)ctxt_PriorClicks);
+				//3 distance to prior click
+				double ctxt_DisToLastClick = tUrl.getDisToLastClick();
+				releFeatureVec.add(ctxt_DisToLastClick);
+				
+				tUrl.setReleFeatureVector(toDArray(releFeatureVec));
+			}				
 		}
 		//2
 		iniWeightVector();		
@@ -121,6 +145,34 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		}	
 	}
 	
+	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
+		tQuery.calQSessionPro();
+		
+		return tQuery.getQSessionPro();
+	}
+	
+	public double getTestCorpusProb(boolean onlyClick) {
+		if(!onlyClick){
+			System.err.println("USM-similar models only use clicks!");
+		}
+		
+		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);
+			calQSessionSatPros(tQuery);
+			
+			tQuery.calQSessionPro();
+		}
+		
+		double corpusLikelihood = 0.0;
+		
+		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);
+			double sessionPro = tQuery.getQSessionPro();
+			corpusLikelihood += Math.log(sessionPro);
+		}
+		//the higher the better
+		return corpusLikelihood;	
+	}
 	////////
 	//
 	////////
@@ -169,12 +221,21 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		
 		tQuery.setCumuVals(gTruthBasedCumuValList);
 	}
-
 	
 	protected void outputParas(){
 		for(double w: _rele_context_weights){
 			System.out.print(w+"\t");
 		}
 		System.out.println();
+	}
+	
+	///////
+	//
+	///////
+	public static void main(String []args){
+		//1
+		EX_USM ex_USM = new EX_USM(0.75);
+		ex_USM.train();
+		System.out.println(ex_USM.getTestCorpusProb(true));
 	}
 }

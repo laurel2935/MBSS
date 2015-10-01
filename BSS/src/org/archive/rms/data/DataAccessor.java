@@ -19,7 +19,7 @@ import org.archive.access.feature.TextCollection;
 import org.archive.access.index.DocData;
 import org.archive.nicta.kernel.LDAKernel;
 import org.archive.nicta.kernel.TFIDF_A1;
-import org.archive.rms.MAnalyzer;
+import org.archive.rms.advanced.MAnalyzer;
 import org.archive.util.io.IOText;
 import org.htmlparser.NodeFilter;
 import org.htmlparser.Parser;

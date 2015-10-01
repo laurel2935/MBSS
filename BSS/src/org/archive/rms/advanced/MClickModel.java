@@ -1,4 +1,4 @@
-package org.archive.rms;
+package org.archive.rms.advanced;
 
 import java.util.ArrayList;
 import java.util.Random;
@@ -72,11 +72,44 @@ public class MClickModel extends USMFrame{
 	 * **/
 	@Override
 	protected void ini(){
-		//1
+		//1 as for features
+		for(TQuery tQuery: this._QSessionList){
+			String qKey = tQuery.getKey()+":"+tQuery.getQueryText();
+			tQuery.setMarTensor(key2MarFeatureMap.get(qKey));
+			
+			//context information
+			tQuery.calContextInfor();			
+			
+			for(TUrl tUrl: tQuery.getUrlList()){
+				String urlKey = tUrl.getDocNo()+":"+tQuery.getQueryText();
+				
+				ArrayList<Double> releFeatureVec = new ArrayList<>();
+				
+				////former part
+				ArrayList<Double> partialReleFeatures = key2ReleFeatureMap.get(urlKey);
+				for(Double parF: partialReleFeatures){
+					releFeatureVec.add(parF);
+				}
+				
+				////later part
+				//context information
+				//1 rankPosition
+				int ctxt_RPos = tUrl.getRankPosition();
+				releFeatureVec.add((double)ctxt_RPos);
+				//2 number of prior clicks
+				int ctxt_PriorClicks = tUrl.getPriorClicks();
+				releFeatureVec.add((double)ctxt_PriorClicks);
+				//3 distance to prior click
+				double ctxt_DisToLastClick = tUrl.getDisToLastClick();
+				releFeatureVec.add(ctxt_DisToLastClick);
+				
+				tUrl.setReleFeatureVector(toDArray(releFeatureVec));
+			}				
+		}
+		
 		for(int i=0; i<this._trainNum; i++){
 			TQuery tQuery = this._QSessionList.get(i);
-			//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently
-			tQuery.calContextInfor();			
+			//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently						
 			tQuery.calMarFeatureList();
 		}
 
@@ -149,6 +182,7 @@ public class MClickModel extends USMFrame{
 			TQuery tQuery = this._QSessionList.get(k);
 			
 			double [] rele_parGradient = tQuery.calRelePartialGradient();
+			//System.out.println("L:\t"+rele_parGradient.length);
 			for(int i=0; i<IAccessor._releFeatureLength; i++){
 				total_rele_parGradient[i] += rele_parGradient[i];
 			}
@@ -177,9 +211,43 @@ public class MClickModel extends USMFrame{
 			g[IAccessor._releFeatureLength+j] = total_mar_parGradient[j];
 		}		
 	}
-	////
+
+	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
+		tQuery.calMarFeatureList();
+		
+		tQuery.calQSessionPro();
+		
+		return tQuery.getQSessionPro();
+	}
 	
-	
+	public double getTestCorpusProb(boolean onlyClick) {
+		for(int i=this._trainNum; i<this._QSessionList.size(); i++){
+			TQuery tQuery = this._QSessionList.get(i);
+			//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently						
+			tQuery.calMarFeatureList();
+		}
+		
+		if(!onlyClick){
+			System.err.println("USM-similar models only use clicks!");
+		}
+		
+		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);
+			calQSessionSatPros(tQuery);
+			
+			tQuery.calQSessionPro();
+		}
+		
+		double corpusLikelihood = 0.0;
+		
+		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);
+			double sessionPro = tQuery.getQSessionPro();
+			corpusLikelihood += Math.log(sessionPro);
+		}
+		//the higher the better
+		return corpusLikelihood;	
+	}
 	////////
 	//
 	////////
@@ -192,24 +260,8 @@ public class MClickModel extends USMFrame{
 		for(int i=0; i<IAccessor._releFeatureLength; i++){
 			releParas[i] = _rele_mar_weights[i];
 		}
-		
-		double [] releFreatureVec = new double [IAccessor._releFeatureLength];
-		
-		double [] partialReleFreatureVector = tUrl.getReleFeatures();
-		int k=0;
-		for(; k<partialReleFreatureVector.length; k++){
-			releFreatureVec[k] = partialReleFreatureVector[k];
-		}
-		//context information
-		//rankPosition
-		int ctxt_RPos = tUrl.getRankPosition();
-		releFreatureVec[k++] = (double)ctxt_RPos;
-		//number of prior clicks
-		int ctxt_PriorClicks = tUrl.getPriorClicks();
-		releFreatureVec[k++] = (double)ctxt_PriorClicks;
-		//distance to prior click
-		double ctxt_DisToLastClick = tUrl.getDisToLastClick();
-		releFreatureVec[k++] = ctxt_DisToLastClick;
+	
+		double [] releFreatureVec = tUrl.getReleFeatures();
 		
 		double dotProVal = dotProduct(releFreatureVec, releParas);
 		double releVal = Math.exp(dotProVal);
@@ -305,4 +357,14 @@ public class MClickModel extends USMFrame{
 		System.out.println();
 	}
 	
+	
+	///////
+	//
+	///////
+	public static void main(String []args){
+		//1
+		MClickModel mClickModel = new MClickModel(0.75);
+		mClickModel.train();
+		System.out.println(mClickModel.getTestCorpusProb(true));
+	}
 }

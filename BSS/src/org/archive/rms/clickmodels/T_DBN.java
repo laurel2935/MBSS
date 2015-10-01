@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Random;
 
-import org.archive.rms.MAnalyzer;
+import org.archive.rms.advanced.MAnalyzer;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 
