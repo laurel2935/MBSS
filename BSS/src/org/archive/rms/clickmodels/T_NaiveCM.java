@@ -171,14 +171,14 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 			return;
 		}
 		
-		///*
+		/*
 		T_NaiveCM t_NaiveCM = new T_NaiveCM();
 		t_NaiveCM.LoadLogs(args[1], Integer.valueOf(args[2]));		
 		t_NaiveCM.doTrain();		
 		
 		t_NaiveCM.LoadLogs(args[3]);
 		t_NaiveCM.doTest(args[4], Boolean.valueOf(args[5]));
-		//*/
+		*/
 	}
 	
 //	public static void main(String[] args) {

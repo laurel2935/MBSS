@@ -26,7 +26,9 @@ public class TQuery {
 	
 	//
 	ArrayList<Boolean> _gTruthClickSequence;
-	//
+	//without marginal concept, just the relevance based utility
+	ArrayList<Double>  _gTruthBasedReleValList;
+	//for marginal utility based cumulative utility
 	ArrayList<Double>  _gTruthBasedMarValList;
 	//corresponding to each clicked position
 	ArrayList<Double>  _gTruthBasedCumuUtilityList;
@@ -197,17 +199,23 @@ public class TQuery {
 		
 		return marFeatureVector;
 	}
-	public void setGTruthBasedMarValues(ArrayList<Double> gTruthBasedMarValList){
-		this._gTruthBasedMarValList = gTruthBasedMarValList;
-	}
+
 	/**
 	 * cumulative utility w.r.t. the given rank position
 	 * **/
-	public double calCumulativeUtility(int kRank){
+	public double calCumulativeUtility(int kRank, boolean isMarginal){
 		double cumuVal = 0.0;
-		for(int iRank=1; iRank<=kRank; iRank++){
-			cumuVal += this._gTruthBasedMarValList.get(iRank-1);
+		
+		if(isMarginal){
+			for(int iRank=1; iRank<=kRank; iRank++){
+				cumuVal += this._gTruthBasedMarValList.get(iRank-1);
+			}
+		}else{
+			for(int iRank=1; iRank<=kRank; iRank++){
+				cumuVal += this._gTruthBasedReleValList.get(iRank-1);
+			}
 		}
+		
 		return cumuVal;		
 	}
 	//
@@ -351,6 +359,14 @@ public class TQuery {
 	//
 	public void setGTruthClickSequence(ArrayList<Boolean> gTruthClickSequence){
 		this._gTruthClickSequence = gTruthClickSequence;
+	}
+	//
+	public void setGTruthBasedReleValues(ArrayList<Double> gTruthBasedReleValList){
+		this._gTruthBasedReleValList = gTruthBasedReleValList;
+	}
+	//	
+	public void setGTruthBasedMarValues(ArrayList<Double> gTruthBasedMarValList){
+		this._gTruthBasedMarValList = gTruthBasedMarValList;
 	}
 	//
 	public void setCumuVals(ArrayList<Double>  gTruthBasedCumuUtilityList){
