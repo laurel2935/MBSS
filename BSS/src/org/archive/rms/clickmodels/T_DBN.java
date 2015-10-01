@@ -195,7 +195,7 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 		return corpusLikelihood;		
 	}
 	
-	
+	public void train(){}
 	
 //	public static void main(String[] args) {
 //		if (args.length!=3){

@@ -365,6 +365,8 @@ public class MClickModel extends USMFrame{
 		//1
 		MClickModel mClickModel = new MClickModel(0.75);
 		mClickModel.train();
+		//0-7
+		//-5092.38721036584
 		System.out.println(mClickModel.getTestCorpusProb(true));
 	}
 }

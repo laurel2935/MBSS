@@ -236,6 +236,8 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		//1
 		EX_USM ex_USM = new EX_USM(0.75);
 		ex_USM.train();
+		//0-15
+		//-5092.389142761225
 		System.out.println(ex_USM.getTestCorpusProb(true));
 	}
 }

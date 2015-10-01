@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import org.archive.rms.advanced.EX_USM;
 import org.archive.rms.advanced.MAnalyzer;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
@@ -79,11 +80,13 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 	}
 	
 	_stat getStat(String query, String url, boolean add4miss, int size){
+		//the problem: the same query and url, but different sizes of result lists
 		String key = query + "@" + url;
 		if (m_uq_stat.containsKey(key))
 			return m_uq_stat.get(key);
 		else if (add4miss) {
-			_stat s = new _stat(size);
+			//_stat s = new _stat(size);
+			_stat s = new _stat(20);
 			m_uq_stat.put(key, s);
 			return s;
 		} else
@@ -156,6 +159,9 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 				}
 				else{
 					st.m_skip ++;
+					//System.out.println("size:\t"+size);
+					//System.out.println(st.m_skip_rd.length);
+					//System.out.println(rankPos-1);
 					st.m_skip_rd[rankPos-1][rankPos-lastclick] ++;
 				}
 			}
@@ -362,8 +368,14 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 				TUrl tUrl = urlList.get(rankPos-1);
 				
 				if(tUrl.getGTruthClick() > 0){
-					double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);				
-					sessionProb *= (alpha_qu*m_gamma[rankPos-1][(int)tUrl.getDisToLastClick()-1]);
+					if(1 == rankPos){
+						double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);
+						sessionProb *= alpha_qu;
+					}else{
+						double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);
+						int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
+						sessionProb *= (alpha_qu*m_gamma[rankPos-1][dis]);
+					}					
 				}			
 			}
 		}else{//plus skips
@@ -371,11 +383,23 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 				TUrl tUrl = urlList.get(rankPos-1);
 				
 				if(tUrl.getGTruthClick() > 0){
-					double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);				
-					sessionProb *= (alpha_qu*m_gamma[rankPos-1][(int)tUrl.getDisToLastClick()-1]);
+					if(1 == rankPos){
+						double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);
+						sessionProb *= alpha_qu;
+					}else{
+						double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);
+						int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
+						sessionProb *= (alpha_qu*m_gamma[rankPos-1][dis]);
+					}					
 				}else{
-					double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);				
-					sessionProb *= (1-alpha_qu*m_gamma[rankPos-1][(int)tUrl.getDisToLastClick()-1]);
+					if(1 == rankPos){
+						double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);
+						sessionProb *= (1-alpha_qu);
+					}else{
+						double alpha_qu = getAlpha(qText, tUrl.getDocNo(), true);
+						int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
+						sessionProb *= (1-alpha_qu*m_gamma[rankPos-1][dis]);
+					}					
 				}			
 			}
 		}		
@@ -396,7 +420,10 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 		return corpusLikelihood;		
 	}
 	
-	
+	public void train(){
+		getStats();
+		EM(100, 1e-4);
+	}
 	
 //	public static void main(String[] args) {		
 //		UBM ubm = new UBM(0, 0.2, 0.5, 0.5);
@@ -443,4 +470,11 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 		}
 	}
 	*/
+	
+	public static void main(String []args){
+		//1
+		T_UBM t_UBM = new T_UBM(0.75, 0.2, 0.5, 0.5);
+		t_UBM.train();
+		System.out.println(t_UBM.getTestCorpusProb(true));
+	}
 }

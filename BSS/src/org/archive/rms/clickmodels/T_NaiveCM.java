@@ -101,7 +101,6 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 		}
 	}
 	
-	//@Override
 	public void initialize() {
 		if (m_prior>0)
 			return;
@@ -191,22 +190,29 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 		return corpusLikelihood;		
 	}
 	
+	public void train(){	
+		initialize();
+		doTrain();
+	}
 	
+	/*
 	public static void main(String[] args) {
+		
 		if (args[0].equals("ntest") && args.length!=6){
 			System.err.println("[Usage]ntest trainset maxUser testset results isBucket");
 			return;
 		}
 		
-		/*
+		
 		T_NaiveCM t_NaiveCM = new T_NaiveCM();
 		t_NaiveCM.LoadLogs(args[1], Integer.valueOf(args[2]));		
 		t_NaiveCM.doTrain();		
 		
 		t_NaiveCM.LoadLogs(args[3]);
 		t_NaiveCM.doTest(args[4], Boolean.valueOf(args[5]));
-		*/
+		
 	}
+	*/
 	
 //	public static void main(String[] args) {
 //		NaiveCM ncm = new NaiveCM();
@@ -221,4 +227,11 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 //		ncm.LoadLogs("Data/Bucket/urls.dat");
 //		ncm.doTest("Data/Results/UBM_bucket", true);
 //	}
+	
+	public static void main(String[] args) {
+		//1
+		T_NaiveCM t_NaiveCM = new T_NaiveCM(0.75);
+		t_NaiveCM.train();
+		System.out.println(t_NaiveCM.getTestCorpusProb(true));
+	}
 }

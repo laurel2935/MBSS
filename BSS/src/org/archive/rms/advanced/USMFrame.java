@@ -75,7 +75,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	/**
 	 * perform training
 	 * **/
-	protected void train(){
+	public void train(){
 		ini();
 		
 		int defaultMaxItr = 50;
