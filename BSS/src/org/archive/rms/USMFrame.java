@@ -10,32 +10,30 @@ import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 import org.archive.rms.data.TUser;
 
-public abstract class USMFrame implements T_Evaluation{
+public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	//
 	public static final double EPSILON = 0.1;
 	
 	//optimizer
 	protected LBFGS _lbfgsOptimizer;
 	
-	protected double _testRatio;
+	//protected double _testRatio;
 	//i.e., top-trainNum instances
-	protected int _trainNum;
+	//protected int _trainNum;
 	//i.e., later-testNum instances
-	protected int _testNum;
+	//protected int _testNum;
 	
-	ArrayList<TQuery> _QSessionList;
+	//ArrayList<TQuery> _QSessionList;
 	
-	USMFrame(double testRatio, ArrayList<TQuery> QSessionList){
+	USMFrame(double testRatio){
+		super(testRatio, true);
 		this._testRatio = testRatio;
-		this._QSessionList = QSessionList;
+		//this._QSessionList = QSessionList;
 		
 		this._testNum = (int)(this._QSessionList.size()*testRatio);
 		this._trainNum = this._QSessionList.size()-this._testNum;
 	}
 	
-	USMFrame(){
-		
-	}
 	
 	//////////
 	//

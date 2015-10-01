@@ -81,11 +81,29 @@ public class MAnalyzer {
 	}
 	
 	
-	protected MAnalyzer(double testRatio){
+	protected MAnalyzer(double testRatio, boolean useFeature){
 		this._testRatio = testRatio;
 		
+		//search log
+		LoadLog();
+				
 		this._testNum = (int)(this._QSessionList.size()*testRatio);
 		this._trainNum = this._QSessionList.size()-this._testNum;
+				
+		//features
+		if(useFeature){
+			loadFeatureVectors();			
+			//
+			for(TQuery tQuery: this._QSessionList){
+				String qKey = tQuery.getKey()+":"+tQuery.getQueryText();
+				tQuery.setMarTensor(key2MarFeatureMap.get(qKey));
+				
+				for(TUrl tUrl: tQuery.getUrlList()){
+					String urlKey = tUrl.getDocNo()+":"+tQuery.getQueryText();
+					tUrl.setReleFeatureVector(toDArray(key2ReleFeatureMap.get(urlKey)));
+				}				
+			}
+		}		
 	}
 	//////////
 	//Necessary for click-model training & testing
@@ -122,8 +140,8 @@ public class MAnalyzer {
 		*/
 	}
 	
-	protected void iniClickModel() {
-		
+	//initial test
+	protected void iniClickModel() {		
 		//set the corresponding feature vectors
 		for(TUser tUser: _userList){
 			for(TQuery tQuery: tUser.getQueryList()){
@@ -179,7 +197,7 @@ public class MAnalyzer {
 		this._rawSearchLogFile = rawSearchLogFile;
 	}
 	
-	protected void LoadLogs(){
+	protected void LoadLog(){
 		ArrayList<BingQSession1> bingQSessionList = DataAccessor.loadSearchLog(_rawSearchLogFile);
 		
 		int sessionCount = 0;
@@ -665,22 +683,22 @@ public class MAnalyzer {
 		
 		//3 step-2
 		// buffer rele and mar features
-		///*
+		/*
 		boolean fieldSpecificLDA = true;
 		boolean useLoadedModel = false;
 		MAnalyzer mAnalyzer = new MAnalyzer(true, fieldSpecificLDA, useLoadedModel);
 		mAnalyzer.bufferFeatureVectors(false);
-		//*/
+		*/
 		
 		//4 step-3
 		/*
 		MAnalyzer mAnalyzer = new MAnalyzer(false);
 		mAnalyzer.loadFeatureVectors();
 		
-		//mAnalyzer.setSearchLogFile(FRoot._file_UsedSearchLog);
-		//mAnalyzer.loadSearchLog(true);
+		mAnalyzer.setSearchLogFile(FRoot._file_UsedSearchLog);
+		mAnalyzer.loadSearchLog(true);
 		
-		//mAnalyzer.iniClickModel();
+		mAnalyzer.iniClickModel();
 		*/
 		
 	}

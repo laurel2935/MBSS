@@ -71,7 +71,7 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 	int _maxSize;
 	
 	T_UBM(double testRatio, double alpha, double gamma, double mu){
-		super(testRatio);
+		super(testRatio, false);
 		
 		m_alpha_init = alpha;
 		m_gamma_init = gamma;

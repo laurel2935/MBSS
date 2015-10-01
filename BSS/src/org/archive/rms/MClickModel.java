@@ -61,8 +61,8 @@ public class MClickModel extends USMFrame{
 //		this._userList = userList;
 //	}
 	
-	MClickModel(double testRatio, ArrayList<TQuery> QSessionList){
-		super(testRatio, QSessionList);
+	MClickModel(double testRatio){
+		super(testRatio);
 	}
 	//////////
 	//Part: Optimization

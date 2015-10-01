@@ -59,8 +59,8 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 	HashMap<String, QueryStat> m_model;
 	double m_prior;//overall click probability
 	
-	public T_NaiveCM() {
-		super(0);
+	public T_NaiveCM(double testRatio) {
+		super(testRatio, false);
 		m_model = new HashMap<String, QueryStat>();
 		m_prior = 0;
 	}

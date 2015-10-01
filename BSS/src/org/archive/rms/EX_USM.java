@@ -25,8 +25,8 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 	//optimizer
 	protected LBFGS _lbfgsOptimizer;
 		
-	EX_USM(double testRatio, ArrayList<TQuery> QSessionList){
-		super(testRatio, QSessionList);
+	EX_USM(double testRatio){
+		super(testRatio);
 	}
 		
 	
