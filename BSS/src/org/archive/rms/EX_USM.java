@@ -9,7 +9,6 @@ import optimizer.LBFGS.ExceptionWithIflag;
 import org.archive.access.feature.IAccessor;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
-import org.archive.rms.data.TUser;
 
 import cc.mallet.types.MatrixOps;
 
@@ -20,7 +19,7 @@ import cc.mallet.types.MatrixOps;
 
 public class EX_USM extends USMFrame {
 	
-	private double [] _rele_weights;
+	private double [] _rele_context_weights;
 	
 	//optimizer
 	protected LBFGS _lbfgsOptimizer;
@@ -28,8 +27,7 @@ public class EX_USM extends USMFrame {
 	EX_USM(double testRatio, ArrayList<TQuery> QSessionList){
 		super(testRatio, QSessionList);
 	}
-	
-	
+		
 	
 	/**
 	 * initialize the parameters, i.e., the weights w.r.t. each feature.
@@ -40,6 +38,8 @@ public class EX_USM extends USMFrame {
 		for(TQuery tQuery: this._QSessionList){
 			//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently
 			tQuery.calContextInfor();
+			
+			tQuery.calReleFeatureList();
 		}
 		//2
 		iniWeightVector();		
@@ -48,13 +48,13 @@ public class EX_USM extends USMFrame {
 	@Override
 	protected void iniWeightVector(){
 		
-		_rele_weights =new double[IAccessor._releFeatureLength];
+		_rele_context_weights =new double[IAccessor._releFeatureLength];
 		
 		double defaultScale = 50;
 		
 		Random rand = new Random();
-		for(int i=0; i<_rele_weights.length; i++){
-			_rele_weights [i] = (2*rand.nextDouble()-1)/defaultScale;
+		for(int i=0; i<_rele_context_weights.length; i++){
+			_rele_context_weights [i] = (2*rand.nextDouble()-1)/defaultScale;
 		}
 	}
 	
@@ -64,7 +64,7 @@ public class EX_USM extends USMFrame {
 		int[] iprint = {-1, 0}, iflag = {0};
 		
 		//gradient w.r.t. the function
-		double[] g = new double[_rele_weights.length], diag = new double[_rele_weights.length];
+		double[] g = new double[_rele_context_weights.length], diag = new double[_rele_context_weights.length];
 
 		int iter = 0;
 		//objVal
@@ -87,7 +87,7 @@ public class EX_USM extends USMFrame {
 			
 			try{
 				
-				_lbfgsOptimizer.lbfgs(_rele_weights.length, 5, _rele_weights, -f, g, false, diag, iprint, 1e-3, 1e-3, iflag);
+				_lbfgsOptimizer.lbfgs(_rele_context_weights.length, 5, _rele_context_weights, -f, g, false, diag, iprint, 1e-3, 1e-3, iflag);
 
 			} catch (ExceptionWithIflag ex){
 				System.err.println("[Warning]M-step cannot proceed!");
@@ -102,14 +102,14 @@ public class EX_USM extends USMFrame {
 	 * get the gradient for optimization
 	 * needs refresh
 	 * **/
-	private void calFunctionGradient1(double[] g){		
+	private void calFunctionGradient(double[] g){		
 		//rele part
 		double [] total_rele_parGradient = new double[IAccessor._releFeatureLength];
 		
 		for(int k=0; k<this._trainNum; k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			
-			double [] rele_parGradient = tQuery.calRelePartialGradient();
+			double [] rele_parGradient = tQuery.calRelePartialGradient_NoMarginal();
 			for(int i=0; i<IAccessor._releFeatureLength; i++){
 				total_rele_parGradient[i] += rele_parGradient[i];
 			}
@@ -117,26 +117,7 @@ public class EX_USM extends USMFrame {
 		
 		for(int i=0; i<IAccessor._releFeatureLength; i++){
 			g[i] = total_rele_parGradient[i];
-		}
-		
-		//mar part
-		double [] total_mar_parGradient = new double[IAccessor._marFeatureLength];
-		
-		for(int k=0; k<this._trainNum; k++){
-			TQuery tQuery = this._QSessionList.get(k);
-			
-			double [] mar_parGradient = tQuery.calMarPartialGradient();
-			
-			for(int j=0; j<IAccessor._marFeatureLength; j++){
-				total_mar_parGradient[j] += mar_parGradient[j];
-			}
-		}
-		
-		//context part
-		
-		for(int j=0; j<IAccessor._marFeatureLength; j++){
-			g[IAccessor._releFeatureLength+j] = total_mar_parGradient[j];
-		}		
+		}	
 	}
 	
 	////////
@@ -149,7 +130,7 @@ public class EX_USM extends USMFrame {
 	protected double calReleVal(TUrl tUrl){
 		double [] releParas = new double [IAccessor._releFeatureLength];
 		for(int i=0; i<IAccessor._releFeatureLength; i++){
-			releParas[i] = _rele_weights[i];
+			releParas[i] = _rele_context_weights[i];
 		}
 		
 		double [] releFreatureVector = tUrl.getReleFeatures();
@@ -190,7 +171,7 @@ public class EX_USM extends USMFrame {
 
 	
 	protected void outputParas(){
-		for(double w: _rele_weights){
+		for(double w: _rele_context_weights){
 			System.out.print(w+"\t");
 		}
 		System.out.println();

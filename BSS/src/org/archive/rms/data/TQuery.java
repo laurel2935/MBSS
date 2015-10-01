@@ -33,6 +33,10 @@ public class TQuery {
 	//corresponding to each clicked position
 	ArrayList<Double>  _gTruthBasedCumuUtilityList;
 	ArrayList<Double>  _gTruthBasedSatProList;
+	
+	//without marginal utility
+	ArrayList<ArrayList<Double>> _gTruthBasedReleFeatureList; 
+	//w.r.t. marginal utility
 	ArrayList<ArrayList<Double>> _gTruthBasedMarFeatureList;
 	
 	
@@ -128,6 +132,40 @@ public class TQuery {
 				_gTruthBasedMarFeatureList.add(null);
 			}
 		}		
+	}
+	
+	//mainly for framework without marginal concept
+	public void calReleFeatureList(){
+		this._gTruthBasedReleFeatureList = new ArrayList<>();
+		
+		for(int rank=1; rank<_urlList.size(); rank++){
+			if(_gTruthClickSequence.get(rank-1)){
+				
+				ArrayList<Double> releFeatureVec = new ArrayList<>();				
+				
+				TUrl tUrl = _urlList.get(rank-1);
+				double [] partialReleFeatures = tUrl.getReleFeatures();
+				for(int i=0; i<partialReleFeatures.length; i++){
+					releFeatureVec.add(partialReleFeatures[i]);
+				}
+				
+				//context information
+				//rankPosition
+				int ctxt_RPos = tUrl.getRankPosition();
+				releFeatureVec.add((double)ctxt_RPos);
+				//number of prior clicks
+				int ctxt_PriorClicks = tUrl.getPriorClicks();
+				releFeatureVec.add((double)ctxt_PriorClicks);
+				//distance to prior click
+				double ctxt_DisToLastClick = tUrl.getDisToLastClick();
+				releFeatureVec.add(ctxt_DisToLastClick);
+				
+				this._gTruthBasedReleFeatureList.add(releFeatureVec);
+				
+			}else{
+				this._gTruthBasedReleFeatureList.add(null);
+			}
+		}
 	}
 	
 	/**
@@ -305,6 +343,86 @@ public class TQuery {
 			return null;
 		}		
 	}
+	
+	public double [] calRelePartialGradient_NoMarginal(){
+		
+		int firstC = getFirstClickPosition();
+		int lastC =  getLastClickPosition();
+		
+		if(firstC < lastC){//at least two clicks
+			int len = this._urlList.get(0).getReleFeatures().length;
+			
+			//w.r.t. first click			
+			double [] part1 = new double [len];
+			
+			double firstC_releVal = this._urlList.get(firstC-1).getReleValue();
+			double p1_seg_1 = 1/(1-_gTruthBasedSatProList.get(firstC-1));
+			double p1_seg_2 = -1.0;
+			double p1_seg_3 = Math.exp(MClickModel.EPSILON+firstC_releVal)/Math.pow(1+Math.exp(MClickModel.EPSILON+firstC_releVal), 2);
+			double p1_seg_4 = firstC_releVal;
+			for(int i=0; i<len; i++){
+				double [] firstCFeVector = this._urlList.get(firstC-1).getReleFeatures();
+				double p1_seg_5 = firstCFeVector[i];
+				part1[i] = p1_seg_1*p1_seg_2*p1_seg_3*p1_seg_4*p1_seg_5;
+			}			
+			
+			//2nd-click - (lastC-1)-click
+			double [] part2 = new double [len];			
+			int secondClick   = getSubsequentClickPosition(firstC);
+			int clickAboveLast= getPriorClickPosition(lastC);
+						
+			for(int cRank=secondClick; cRank<=clickAboveLast; cRank=getSubsequentClickPosition(cRank)){				
+				double p2_seg_1 = 1/(1-_gTruthBasedSatProList.get(cRank-1));
+				double p2_seg_2 = -1.0;
+				double p2_seg_3 = Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(cRank-1))/Math.pow(1+Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(cRank-1)), 2);
+				//
+				double [] p2_seg_4 = new double [len];
+				ArrayList<Integer> priorRanks = getPriorClicks(cRank);
+				for(Integer priorRank: priorRanks){
+					for(int i=0; i<len; i++){
+						p2_seg_4[i] += (this._gTruthBasedReleValList.get(priorRank-1)*this._gTruthBasedReleFeatureList.get(priorRank-1).get(i));
+					}					
+				}				
+				//
+				for(int i=0; i<len; i++){
+					//double [] firstCFeVector = this._urlList.get(firstC-1).getReleFeatures();
+					//double p2_seg_5 = firstCFeVector[i];
+					part2[i] += p2_seg_1*p2_seg_2*p2_seg_3*p2_seg_4[i];
+				}				
+			}			
+			
+			//last click
+			double [] part3 = new double[len];
+			double p3_seg_1 = 1/_gTruthBasedSatProList.get(lastC-1);
+			double p3_seg_2 = Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(lastC-1))/Math.pow(1+Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(lastC-1)), 2);
+			//double p3_seg_3 = firstC_releVal;
+			double [] p3_seg_3 = new double [len];
+			ArrayList<Integer> priorRanks = getPriorClicks(lastC);
+			for(Integer priorRank: priorRanks){
+				for(int i=0; i<len; i++){
+					p3_seg_3[i] += (this._gTruthBasedReleValList.get(priorRank-1)*this._gTruthBasedReleFeatureList.get(priorRank-1).get(i));
+				}
+			}
+			//
+			for(int i=0; i<len; i++){
+				//double [] firstCFeVector = this._urlList.get(firstC-1).getReleFeatures();
+				//double p3_seg_4 = firstCFeVector[i];
+				part3[i] = p3_seg_1*p3_seg_2*p3_seg_3[i];
+			}
+			
+			//combined partial gradient
+			double [] rele_parGradient = new double[len];
+			for(int i=0; i<len; i++){
+				rele_parGradient[i] = part1[i]+part2[i]+part3[i];
+			}
+			
+			return rele_parGradient;			
+		}else {
+			return null;
+		}		
+	}
+	
+	
 	/**
 	 * 
 	 * **/
@@ -326,22 +444,43 @@ public class TQuery {
 				double mar_p1_seg_1 = 1/(1-_gTruthBasedSatProList.get(cRank-1));
 				double mar_p1_seg_2 = -1.0;
 				double mar_p1_seg_3 = Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(cRank-1))/Math.pow(1+Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(cRank-1)), 2);
-				double mar_p1_seg_4 = _gTruthBasedCumuUtilityList.get(cRank-1)-firstC_releVal;	
-				double [] marFeatureVec = getMarFeature(cRank);
+				
+				//double mar_p1_seg_4 = _gTruthBasedCumuUtilityList.get(cRank-1)-firstC_releVal;	
+				double [] mar_p1_seg_4 = new double [len];				
+				ArrayList<Integer> priorRanks = getPriorClicks(cRank);
+				for(int k=1; k<priorRanks.size(); k++){
+					Integer pos = priorRanks.get(k);
+					double [] marFeatureVec = getMarFeature(pos);
+					for(int i=0; i<len; i++){
+						mar_p1_seg_4[i] += (this._gTruthBasedMarValList.get(pos-1)*marFeatureVec[i]);
+					}
+				}				
+				
+				//
 				for(int i=0; i<len; i++){					
-					double mar_p1_seg_5 = marFeatureVec[i];
-					mar_part1[i] += mar_p1_seg_1*mar_p1_seg_2*mar_p1_seg_3*mar_p1_seg_4*mar_p1_seg_5;					
+					//double mar_p1_seg_5 = marFeatureVec[i];
+					mar_part1[i] += mar_p1_seg_1*mar_p1_seg_2*mar_p1_seg_3*mar_p1_seg_4[i];					
 				}
 			}
 			//part-2
 			double [] mar_part2 = new double [len];
 			double mar_p2_seg_1 = 1/(_gTruthBasedSatProList.get(lastC-1));
 			double mar_p2_seg_2 = Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(lastC-1))/Math.pow(1+Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(lastC-1)), 2);
-			double mar_p2_seg_3 = _gTruthBasedCumuUtilityList.get(lastC-1)-firstC_releVal;	
-			double [] marFeatureVec = getMarFeature(lastC);
+			
+			//double mar_p2_seg_3 = _gTruthBasedCumuUtilityList.get(lastC-1)-firstC_releVal;
+			double [] mar_p2_seg_3 = new double [len];
+			ArrayList<Integer> priorRanks = getPriorClicks(lastC);
+			for(int k=1; k<priorRanks.size(); k++){
+				Integer pos = priorRanks.get(k);
+				double [] marFeatureVec = getMarFeature(pos);
+				for(int i=0; i<len; i++){
+					mar_p2_seg_3[i] += (this._gTruthBasedMarValList.get(pos-1)*marFeatureVec[i]);
+				}
+			}			
+			
 			for(int i=0; i<len; i++){
-				double mar_p2_seg_4 = marFeatureVec[i];
-				mar_part2[i] = mar_p2_seg_1*mar_p2_seg_2*mar_p2_seg_3*mar_p2_seg_4;
+				//double mar_p2_seg_4 = marFeatureVec[i];
+				mar_part2[i] = mar_p2_seg_1*mar_p2_seg_2*mar_p2_seg_3[i];
 			}
 			
 			//combined partial gradient

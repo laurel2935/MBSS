@@ -194,8 +194,25 @@ public class MClickModel extends USMFrame{
 			releParas[i] = _rele_mar_weights[i];
 		}
 		
-		double [] releFreatureVector = tUrl.getReleFeatures();
-		double dotProVal = dotProduct(releFreatureVector, releParas);
+		double [] releFreatureVec = new double [IAccessor._releFeatureLength];
+		
+		double [] partialReleFreatureVector = tUrl.getReleFeatures();
+		int k=0;
+		for(; k<partialReleFreatureVector.length; k++){
+			releFreatureVec[k] = partialReleFreatureVector[k];
+		}
+		//context information
+		//rankPosition
+		int ctxt_RPos = tUrl.getRankPosition();
+		releFreatureVec[k++] = (double)ctxt_RPos;
+		//number of prior clicks
+		int ctxt_PriorClicks = tUrl.getPriorClicks();
+		releFreatureVec[k++] = (double)ctxt_PriorClicks;
+		//distance to prior click
+		double ctxt_DisToLastClick = tUrl.getDisToLastClick();
+		releFreatureVec[k++] = ctxt_DisToLastClick;
+		
+		double dotProVal = dotProduct(releFreatureVec, releParas);
 		double releVal = Math.exp(dotProVal);
 		
 		tUrl.setReleVal(releVal);		
