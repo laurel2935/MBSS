@@ -232,6 +232,6 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 		//1
 		T_NaiveCM t_NaiveCM = new T_NaiveCM(0.75);
 		t_NaiveCM.train();
-		System.out.println(t_NaiveCM.getTestCorpusProb(true));
+		System.out.println(t_NaiveCM.getTestCorpusProb(false));
 	}
 }

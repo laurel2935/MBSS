@@ -153,4 +153,11 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	}
 	//
 	protected abstract void outputParas();
+	////////
+	//Feature pre-process
+	////////
+	//estimating mean and standard deviation
+	protected abstract void getReleFeatureMeanStdVariance(double[] mean, double[] stdVar);
+	//
+	protected abstract void normalize();
 }

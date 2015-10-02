@@ -498,6 +498,44 @@ public class TQuery {
 	}
 	
 	//
+	public void marNormalize(double[] marMean, double[] marStdVar){
+		ArrayList<ArrayList<Double>> new_gTruthBasedMarFeatureList = new ArrayList<>();
+		
+		int firstC = getFirstClickPosition();
+		int secondC = getSubsequentClickPosition(firstC);
+		for(int rank=1; rank<secondC; rank++){
+			new_gTruthBasedMarFeatureList.add(null);
+		}
+		
+		for(int rank=secondC; rank<=_urlList.size(); rank++){
+			if(_gTruthClickSequence.get(rank-1)){
+				ArrayList<Double> new_marFeatureVec = new ArrayList<>();
+				
+				ArrayList<Double> old_marFeatureVec = this._gTruthBasedMarFeatureList.get(rank-1);
+				for(int i=0; i<old_marFeatureVec.size(); i++){
+					double old_value = old_marFeatureVec.get(i);
+					
+					double new_value;
+					if(0 != marStdVar[i]){
+						new_value = (old_value-marMean[i])/marStdVar[i];
+					}else{
+						new_value = 0d;
+					}
+					
+					new_marFeatureVec.add(new_value);
+				}
+				
+				new_gTruthBasedMarFeatureList.add(new_marFeatureVec);
+				
+			}else {
+				new_gTruthBasedMarFeatureList.add(null);
+			}
+		}
+		
+		this._gTruthBasedMarFeatureList = new_gTruthBasedMarFeatureList;
+	}
+	
+	//
 	public void setGTruthClickSequence(ArrayList<Boolean> gTruthClickSequence){
 		this._gTruthClickSequence = gTruthClickSequence;
 	}

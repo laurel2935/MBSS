@@ -11,6 +11,9 @@ import org.archive.rms.clickmodels.T_Evaluation;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 
+import session.Query;
+import session.URL;
+import session.User;
 import cc.mallet.types.MatrixOps;
 
 /**
@@ -35,7 +38,7 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 	 * **/
 	@Override
 	protected void ini(){
-		//1
+		//1 prepare features
 		for(TQuery tQuery: this._QSessionList){		
 			//context information
 			tQuery.calContextInfor();			
@@ -66,6 +69,10 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 				tUrl.setReleFeatureVector(toDArray(releFeatureVec));
 			}				
 		}
+		
+		//normalize features
+		normalize();
+		
 		//2
 		iniWeightVector();		
 	}
@@ -102,6 +109,9 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 				
 				//function value based on the posterior graph inference! 
 				f = calObjFunctionValue();
+				
+				System.out.println("Iter-"+iter+":\t"+f);
+				
 				calFunctionGradient(g);
 				MatrixOps.timesEquals(g, -1);
 			}
@@ -228,7 +238,71 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		}
 		System.out.println();
 	}
+		
+	protected void getReleFeatureMeanStdVariance(double[] mean, double[] stdVar){
+		double count=0, value;
+		double[] featureVec;
+		
+		//mean
+		for(TQuery tQuery: this._QSessionList){
+			for(TUrl tUrl: tQuery.getUrlList()){
+				if(tUrl.getGTruthClick() > 0){
+					featureVec = tUrl.getReleFeatures();
+					
+					for(int i=0; i<3; i++){
+						value = Math.log(featureVec[i]);
+						mean[i] += value;					
+					}
+					for(int i=3; i<featureVec.length; i++){
+						value = featureVec[i];
+						mean[i] += value;
+					}
+									
+					count ++;
+				}				
+			}
+		}
+		for(int i=0; i<mean.length; i++){
+			mean[i] /= count;
+		}
+		
+		//std variance
+		for(TQuery tQuery: this._QSessionList){
+			for(TUrl tUrl: tQuery.getUrlList()){
+				if(tUrl.getGTruthClick() > 0){
+					featureVec = tUrl.getReleFeatures();
+					
+					for(int i=0; i<3; i++){
+						value = Math.log(featureVec[i]);
+						stdVar [i] += Math.pow((value-mean[i]), 2);									
+					}
+					
+					for(int i=3; i<featureVec.length; i++){
+						value = featureVec[i];
+						stdVar [i] += Math.pow((value-mean[i]), 2);
+					}
+				}				
+			}
+		}
+		for(int i=0; i<stdVar.length; i++){
+			stdVar [i] = Math.sqrt(stdVar[i]/(count-1));
+		}
+	}
 	
+	protected void normalize(){
+		double[] mean = new double [IAccessor._releFeatureLength];
+		double[] stdVar = new double [mean.length];
+		
+		getReleFeatureMeanStdVariance(mean, stdVar);
+		
+		for(TQuery tQuery: this._QSessionList){					
+			for(TUrl tUrl: tQuery.getUrlList()){
+				if(tUrl.getGTruthClick() > 0){
+					tUrl.releNormalize(mean, stdVar);
+				}				
+			}
+		}		
+	}
 	///////
 	//
 	///////
@@ -237,7 +311,7 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		EX_USM ex_USM = new EX_USM(0.75);
 		ex_USM.train();
 		//0-15
-		//-5092.389142761225
+		//before normalizing features; -5092.389142761225
 		System.out.println(ex_USM.getTestCorpusProb(true));
 	}
 }

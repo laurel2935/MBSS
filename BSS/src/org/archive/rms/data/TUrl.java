@@ -72,6 +72,26 @@ public class TUrl {
 		this._rFeatureVector = rFeatureVector;
 	}
 	
+	public void releNormalize(double[] mean, double[] stdVar){
+		for(int i=0; i<3; i++){//frequency
+			_rFeatureVector[i] = Math.log(Math.abs(_rFeatureVector[i]));
+			
+			if(0 != stdVar[i]){
+				_rFeatureVector[i] = (_rFeatureVector[i]-mean[i])/stdVar[i];
+			}else{
+				_rFeatureVector[i] = 0d;
+			}
+		}
+		
+		for(int i=3; i<_rFeatureVector.length; i++){
+			if(0 != stdVar[i]){
+				_rFeatureVector[i] = (_rFeatureVector[i]-mean[i])/stdVar[i];
+			}else{
+				_rFeatureVector[i] = 0d;
+			}
+		}
+	}
+	
 	public int getPriorClicks(){
 		return this._priorClicks;
 	}

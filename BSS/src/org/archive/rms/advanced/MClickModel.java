@@ -107,13 +107,16 @@ public class MClickModel extends USMFrame{
 			}				
 		}
 		
-		for(int i=0; i<this._trainNum; i++){
+		for(int i=0; i<this._QSessionList.size(); i++){
 			TQuery tQuery = this._QSessionList.get(i);
 			//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently						
 			tQuery.calMarFeatureList();
 		}
+		
+		////2 normalizing features
+		normalize();
 
-		//2
+		////3
 		iniWeightVector();		
 	}
 	@Override
@@ -150,6 +153,9 @@ public class MClickModel extends USMFrame{
 				
 				//function value based on the posterior graph inference! 
 				f = calObjFunctionValue();
+				
+				System.out.println("Iter-"+iter+":\t"+f);
+				
 				calFunctionGradient(g);
 				MatrixOps.timesEquals(g, -1);
 			}
@@ -357,6 +363,122 @@ public class MClickModel extends USMFrame{
 		System.out.println();
 	}
 	
+	protected void getReleFeatureMeanStdVariance(double[] mean, double[] stdVar){
+		double count=0, value;
+		double[] featureVec;
+		
+		//mean
+		for(TQuery tQuery: this._QSessionList){			
+			int firstC = tQuery.getFirstClickPosition();
+			TUrl tUrl = tQuery.getUrlList().get(firstC-1);
+			
+			featureVec = tUrl.getReleFeatures();
+			
+			for(int i=0; i<3; i++){
+				value = Math.log(featureVec[i]);
+				mean[i] += value;					
+			}
+			for(int i=3; i<featureVec.length; i++){
+				value = featureVec[i];
+				mean[i] += value;
+			}
+							
+			count ++;
+		}
+		for(int i=0; i<mean.length; i++){
+			mean[i] /= count;
+		}
+		
+		//std variance
+		for(TQuery tQuery: this._QSessionList){
+			int firstC = tQuery.getFirstClickPosition();
+			TUrl tUrl = tQuery.getUrlList().get(firstC-1);
+			
+			featureVec = tUrl.getReleFeatures();
+			
+			for(int i=0; i<3; i++){
+				value = Math.log(featureVec[i]);
+				stdVar [i] += Math.pow((value-mean[i]), 2);									
+			}
+			
+			for(int i=3; i<featureVec.length; i++){
+				value = featureVec[i];
+				stdVar [i] += Math.pow((value-mean[i]), 2);
+			}
+		}
+		for(int i=0; i<stdVar.length; i++){
+			stdVar [i] = Math.sqrt(stdVar[i]/(count-1));
+		}
+	}
+	
+	protected void getMarFeatureMeanStdVariance(double[] marMean, double[] marStdVar){
+		double count=0, value;
+		double[] marFeatureVec;
+		
+		//mean
+		for(TQuery tQuery: this._QSessionList){
+			int firstC = tQuery.getFirstClickPosition();
+			for(int rank=firstC+1; rank<=tQuery.getUrlList().size(); rank++){
+				TUrl tUrl = tQuery.getUrlList().get(rank-1);
+				if(tUrl.getGTruthClick() > 0){
+					marFeatureVec = tQuery.getMarFeature(rank);
+					
+					for(int i=0; i<marFeatureVec.length; i++){
+						value = marFeatureVec[i];
+						marMean[i] += value;
+					}
+				}
+			}
+			
+			count ++;
+		}
+		for(int i=0; i<marMean.length; i++){
+			marMean[i] /= count;
+		}
+		
+		//std variance
+		for(TQuery tQuery: this._QSessionList){
+			int firstC = tQuery.getFirstClickPosition();
+			for(int rank=firstC+1; rank<=tQuery.getUrlList().size(); rank++){
+				TUrl tUrl = tQuery.getUrlList().get(rank-1);
+				if(tUrl.getGTruthClick() > 0){
+					marFeatureVec = tQuery.getMarFeature(rank);
+					
+					for(int i=0; i<marFeatureVec.length; i++){
+						value = marFeatureVec[i];
+						marStdVar [i] += Math.pow((value-marMean[i]), 2);
+					}
+				}
+			}
+		}
+		for(int i=0; i<marStdVar.length; i++){
+			marStdVar [i] = Math.sqrt(marStdVar[i]/(count-1));
+		}
+	}
+	
+	protected void normalize(){
+		//rele part
+		double[] releMean = new double [IAccessor._releFeatureLength];
+		double[] releStdVar = new double [releMean.length];
+		
+		getReleFeatureMeanStdVariance(releMean, releStdVar);
+		
+		for(TQuery tQuery: this._QSessionList){
+			int firstC = tQuery.getFirstClickPosition();
+			TUrl tUrl = tQuery.getUrlList().get(firstC-1);
+			tUrl.releNormalize(releMean, releStdVar);
+		}
+		
+		//mar part
+		double[] marMean = new double [IAccessor._marFeatureLength];
+		double[] marStdVar = new double [marMean.length];
+		
+		getMarFeatureMeanStdVariance(marMean, marStdVar);
+		
+		for(TQuery tQuery: this._QSessionList){			
+			tQuery.marNormalize(marMean, marStdVar);
+		}
+	}
 	
 	///////
 	//
@@ -366,7 +488,7 @@ public class MClickModel extends USMFrame{
 		MClickModel mClickModel = new MClickModel(0.75);
 		mClickModel.train();
 		//0-7
-		//-5092.38721036584
+		//before normalizing -5092.38721036584
 		System.out.println(mClickModel.getTestCorpusProb(true));
 	}
 }

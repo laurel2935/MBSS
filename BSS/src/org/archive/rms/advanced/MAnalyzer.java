@@ -25,6 +25,10 @@ import org.archive.rms.data.TUser;
 import org.archive.util.io.IOText;
 import org.ejml.simple.SimpleMatrix;
 
+import session.Query;
+import session.URL;
+import session.User;
+
 
 /**
  * The framework performs the following tasks:
@@ -653,6 +657,8 @@ public class MAnalyzer {
 		//buffer-2
 		bufferMarFeature(check, simQSessionList);
 	}
+	
+	
 	
 	
 	////
