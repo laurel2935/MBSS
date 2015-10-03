@@ -39,6 +39,16 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 	@Override
 	protected void ini(){
 		//1 prepare features
+		iniFeatures();
+		
+		//normalize features
+		normalizeFeatures();
+		
+		//2
+		iniWeightVector();		
+	}
+	
+	protected void iniFeatures(){
 		for(TQuery tQuery: this._QSessionList){		
 			//context information
 			tQuery.calContextInfor();			
@@ -69,12 +79,6 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 				tUrl.setReleFeatureVector(toDArray(releFeatureVec));
 			}				
 		}
-		
-		//normalize features
-		normalize();
-		
-		//2
-		iniWeightVector();		
 	}
 	
 	@Override
@@ -82,11 +86,11 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		
 		_rele_context_weights =new double[IAccessor._releFeatureLength];
 		
-		double defaultScale = 50;
+		double weightScale = this._defaultWeightScale;
 		
 		Random rand = new Random();
 		for(int i=0; i<_rele_context_weights.length; i++){
-			_rele_context_weights [i] = (2*rand.nextDouble()-1)/defaultScale;
+			_rele_context_weights [i] = (2*rand.nextDouble()-1)/weightScale;
 		}
 	}
 	
@@ -166,7 +170,7 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 			System.err.println("USM-similar models only use clicks!");
 		}
 		
-		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			calQSessionSatPros(tQuery);
 			
@@ -175,7 +179,7 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		
 		double corpusLikelihood = 0.0;
 		
-		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			double sessionPro = tQuery.getQSessionPro();
 			corpusLikelihood += Math.log(sessionPro);
@@ -250,7 +254,8 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 					featureVec = tUrl.getReleFeatures();
 					
 					for(int i=0; i<3; i++){
-						value = Math.log(featureVec[i]);
+						//value = Math.log(featureVec[i]);
+						value = featureVec[i];
 						mean[i] += value;					
 					}
 					for(int i=3; i<featureVec.length; i++){
@@ -273,7 +278,8 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 					featureVec = tUrl.getReleFeatures();
 					
 					for(int i=0; i<3; i++){
-						value = Math.log(featureVec[i]);
+						//value = Math.log(featureVec[i]);
+						value = featureVec[i];
 						stdVar [i] += Math.pow((value-mean[i]), 2);									
 					}
 					
@@ -289,7 +295,7 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		}
 	}
 	
-	protected void normalize(){
+	protected void normalizeFeatures(){
 		double[] mean = new double [IAccessor._releFeatureLength];
 		double[] stdVar = new double [mean.length];
 		

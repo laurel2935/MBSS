@@ -155,7 +155,7 @@ public class MAnalyzer {
 		//_mClickModel.train();
 	}
 	
-	protected double [] toDArray(ArrayList<Double> dArrayList){
+	public static double [] toDArray(ArrayList<Double> dArrayList){
 		double [] dArray = new double [dArrayList.size()];
 		for(int i=0; i<dArrayList.size(); i++){
 			dArray[i] = dArrayList.get(i);

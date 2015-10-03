@@ -39,7 +39,7 @@ public class MClickModel extends USMFrame{
 	
 	
 	public static MarStyle _defaultMarStyle = MarStyle.MIN;
-	
+		
 	//weight vector
 	//w.r.t. utility
 	//private double[] _r_weights;
@@ -73,9 +73,18 @@ public class MClickModel extends USMFrame{
 	@Override
 	protected void ini(){
 		//1 as for features
+		iniFeatures();
+		
+		////2 normalizing features
+		normalizeFeatures();
+
+		////3
+		iniWeightVector();		
+	}
+	
+	protected  void iniFeatures(){
+		
 		for(TQuery tQuery: this._QSessionList){
-			String qKey = tQuery.getKey()+":"+tQuery.getQueryText();
-			tQuery.setMarTensor(key2MarFeatureMap.get(qKey));
 			
 			//context information
 			tQuery.calContextInfor();			
@@ -83,52 +92,60 @@ public class MClickModel extends USMFrame{
 			for(TUrl tUrl: tQuery.getUrlList()){
 				String urlKey = tUrl.getDocNo()+":"+tQuery.getQueryText();
 				
-				ArrayList<Double> releFeatureVec = new ArrayList<>();
+				ArrayList<Double> releFeatureList = new ArrayList<>();
 				
 				////former part
 				ArrayList<Double> partialReleFeatures = key2ReleFeatureMap.get(urlKey);
 				for(Double parF: partialReleFeatures){
-					releFeatureVec.add(parF);
+					releFeatureList.add(parF);
 				}
 				
 				////later part
 				//context information
 				//1 rankPosition
 				int ctxt_RPos = tUrl.getRankPosition();
-				releFeatureVec.add((double)ctxt_RPos);
+				releFeatureList.add((double)ctxt_RPos);
 				//2 number of prior clicks
 				int ctxt_PriorClicks = tUrl.getPriorClicks();
-				releFeatureVec.add((double)ctxt_PriorClicks);
+				releFeatureList.add((double)ctxt_PriorClicks);
 				//3 distance to prior click
 				double ctxt_DisToLastClick = tUrl.getDisToLastClick();
-				releFeatureVec.add(ctxt_DisToLastClick);
+				releFeatureList.add(ctxt_DisToLastClick);
 				
-				tUrl.setReleFeatureVector(toDArray(releFeatureVec));
+				double []releFeatureVec = toDArray(releFeatureList);
+				
+				for(double f: releFeatureVec){
+					if(Double.isNaN(f)){
+						System.err.println("ini NaN feature error!");
+						System.exit(0);
+					}
+				}
+				
+				tUrl.setReleFeatureVector(releFeatureVec);
 			}				
 		}
 		
 		for(int i=0; i<this._QSessionList.size(); i++){
 			TQuery tQuery = this._QSessionList.get(i);
+			
+			String qKey = tQuery.getKey()+":"+tQuery.getQueryText();
+			tQuery.setMarTensor(key2MarFeatureMap.get(qKey));
+			
 			//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently						
-			tQuery.calMarFeatureList();
+			tQuery.calMarFeatureList();			
 		}
-		
-		////2 normalizing features
-		normalize();
-
-		////3
-		iniWeightVector();		
 	}
+	
 	@Override
 	protected void iniWeightVector(){
 		
 		_rele_mar_weights =new double[IAccessor._releFeatureLength+IAccessor._marFeatureLength];
 		
-		double defaultScale = 50;
+		double weightScale = this._defaultWeightScale;;
 		
 		Random rand = new Random();
 		for(int i=0; i<_rele_mar_weights.length; i++){
-			_rele_mar_weights [i] = (2*rand.nextDouble()-1)/defaultScale;
+			_rele_mar_weights [i] = (2*rand.nextDouble()-1)%weightScale;
 		}
 	}
 			
@@ -153,10 +170,22 @@ public class MClickModel extends USMFrame{
 				
 				//function value based on the posterior graph inference! 
 				f = calObjFunctionValue();
+				if(f > USMFrame._MAX){
+					f = USMFrame._MAX;
+				}
+
+				System.out.println("Iter-"+iter+":\tObjValue: "+f);
 				
-				System.out.println("Iter-"+iter+":\t"+f);
+				calFunctionGradient(g);				
 				
-				calFunctionGradient(g);
+				//--
+				System.out.print("g::: ");
+				for(int i=0; i<g.length; i++){
+					System.out.print(g[i]+"\t");
+				}		
+				System.out.println();
+				//--
+				
 				MatrixOps.timesEquals(g, -1);
 			}
 			
@@ -173,6 +202,8 @@ public class MClickModel extends USMFrame{
 			}	
 			
 			System.out.println("..."+iter);
+			outputParas();
+			System.out.println();
 			
 		}while(iflag[0]>0 && ++iter<maxIter);
 	}
@@ -190,6 +221,12 @@ public class MClickModel extends USMFrame{
 			double [] rele_parGradient = tQuery.calRelePartialGradient();
 			//System.out.println("L:\t"+rele_parGradient.length);
 			for(int i=0; i<IAccessor._releFeatureLength; i++){
+				
+				if(Double.isNaN(rele_parGradient[i])){
+					System.out.println("NaN rele gradient:\t");
+					System.exit(0);
+				}
+				
 				total_rele_parGradient[i] += rele_parGradient[i];
 			}
 		}		
@@ -207,6 +244,12 @@ public class MClickModel extends USMFrame{
 			double [] mar_parGradient = tQuery.calMarPartialGradient();
 			
 			for(int j=0; j<IAccessor._marFeatureLength; j++){
+				
+				if(Double.isNaN(mar_parGradient[j])){
+					System.out.println("NaN  mar gradient:\t");
+					System.exit(0);
+				}
+				
 				total_mar_parGradient[j] += mar_parGradient[j];
 			}
 		}
@@ -227,17 +270,12 @@ public class MClickModel extends USMFrame{
 	}
 	
 	public double getTestCorpusProb(boolean onlyClick) {
-		for(int i=this._trainNum; i<this._QSessionList.size(); i++){
-			TQuery tQuery = this._QSessionList.get(i);
-			//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently						
-			tQuery.calMarFeatureList();
-		}
-		
+				
 		if(!onlyClick){
 			System.err.println("USM-similar models only use clicks!");
 		}
-		
-		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+		//
+		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			calQSessionSatPros(tQuery);
 			
@@ -246,11 +284,33 @@ public class MClickModel extends USMFrame{
 		
 		double corpusLikelihood = 0.0;
 		
-		for(int k=this._testNum; k<this._QSessionList.size(); k++){
+		int count = 0;
+		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			double sessionPro = tQuery.getQSessionPro();
-			corpusLikelihood += Math.log(sessionPro);
+			
+			if(Double.isNaN(sessionPro)){
+				count++;
+			}
+			
+			double logVal;
+			if(0 == sessionPro){
+				logVal = USMFrame._MIN;
+			}else{
+				logVal = Math.log(sessionPro);
+			}
+			
+			corpusLikelihood += logVal;
 		}
+		
+		System.out.println(count+" of "+_testNum);
+		System.out.println(("Direct Product:\t"
+					+_testNum+"*"+USMFrame._MIN
+					+"="+_testNum*USMFrame._MIN));
+		System.out.println(("Comparison w.r.t. avgSessionPro{0.1} :\t"
+				+_testNum+"*"+Math.log(0.1)
+				+"="+_testNum*Math.log(0.1)));
+		
 		//the higher the better
 		return corpusLikelihood;	
 	}
@@ -287,7 +347,9 @@ public class MClickModel extends USMFrame{
 		
 		//
 		for(TUrl tUrl: tQuery.getUrlList()){
-			calReleVal(tUrl);
+			if(tUrl.getGTruthClick() > 0){
+				calReleVal(tUrl);
+			}			
 		}
 		
 		ArrayList<Double> gTruthBasedMarValList = new ArrayList<>();		
@@ -329,11 +391,35 @@ public class MClickModel extends USMFrame{
 				
 				double dotProVal = dotProduct(marFeatureVector, marParas);
 				double marVal = Math.exp(dotProVal);
+					
+				///*
+				if(Double.isNaN(marVal)){
+					System.out.println("calGTruthBasedMarVals:\t"+"rank:"+kRank+"\t"+dotProVal+"\t"+"mar:"+marVal);
+					//--					
+					for(int i=0; i<marFeatureVector.length; i++){
+						System.out.print(marParas[i]+" : "+marFeatureVector[i]+"\t");
+					}		
+					System.out.println();
+					//--
+					System.exit(0);
+				}
+				//*/
+				
+				
+				
 				gTruthBasedMarValList.add(marVal);
 			}else{
 				gTruthBasedMarValList.add(0.0);
 			}
 		}
+		
+		/*
+		System.out.println(gTruthClickSeq);
+		for(int i=0; i<gTruthBasedMarValList.size(); i++){
+			System.out.print(gTruthClickSeq.get(i)+":"+gTruthBasedMarValList.get(i)+"\t");
+		}		
+		System.out.println();
+		*/		
 		
 		tQuery.setGTruthBasedMarValues(gTruthBasedMarValList);
 		return true;
@@ -342,6 +428,8 @@ public class MClickModel extends USMFrame{
 	 * 
 	 * **/
 	protected void calGTruthBasedCumuVals(TQuery tQuery){
+		//System.out.println("---");
+		
 		calGTruthBasedMarVals(tQuery);
 		
 		ArrayList<Double> gTruthBasedCumuValList = new ArrayList<>();
@@ -357,6 +445,7 @@ public class MClickModel extends USMFrame{
 		
 	//
 	protected void outputParas(){
+		System.out.print("Paras::: ");
 		for(double w: _rele_mar_weights){
 			System.out.print(w+"\t");
 		}
@@ -375,7 +464,8 @@ public class MClickModel extends USMFrame{
 			featureVec = tUrl.getReleFeatures();
 			
 			for(int i=0; i<3; i++){
-				value = Math.log(featureVec[i]);
+				//value = Math.log(featureVec[i]);
+				value = featureVec[i];
 				mean[i] += value;					
 			}
 			for(int i=3; i<featureVec.length; i++){
@@ -397,7 +487,8 @@ public class MClickModel extends USMFrame{
 			featureVec = tUrl.getReleFeatures();
 			
 			for(int i=0; i<3; i++){
-				value = Math.log(featureVec[i]);
+				//value = Math.log(featureVec[i]);
+				value = featureVec[i];
 				stdVar [i] += Math.pow((value-mean[i]), 2);									
 			}
 			
@@ -434,6 +525,11 @@ public class MClickModel extends USMFrame{
 		}
 		for(int i=0; i<marMean.length; i++){
 			marMean[i] /= count;
+			
+			if(Double.isNaN(marMean[i])){
+				System.err.println(marMean[i]);
+				System.exit(0);
+			}
 		}
 		
 		//std variance
@@ -456,7 +552,7 @@ public class MClickModel extends USMFrame{
 		}
 	}
 	
-	protected void normalize(){
+	protected void normalizeFeatures(){
 		//rele part
 		double[] releMean = new double [IAccessor._releFeatureLength];
 		double[] releStdVar = new double [releMean.length];
@@ -485,7 +581,7 @@ public class MClickModel extends USMFrame{
 	///////
 	public static void main(String []args){
 		//1
-		MClickModel mClickModel = new MClickModel(0.75);
+		MClickModel mClickModel = new MClickModel(0.25);
 		mClickModel.train();
 		//0-7
 		//before normalizing -5092.38721036584

@@ -74,7 +74,7 @@ public class TUrl {
 	
 	public void releNormalize(double[] mean, double[] stdVar){
 		for(int i=0; i<3; i++){//frequency
-			_rFeatureVector[i] = Math.log(Math.abs(_rFeatureVector[i]));
+			//_rFeatureVector[i] = Math.log(Math.abs(_rFeatureVector[i]));
 			
 			if(0 != stdVar[i]){
 				_rFeatureVector[i] = (_rFeatureVector[i]-mean[i])/stdVar[i];

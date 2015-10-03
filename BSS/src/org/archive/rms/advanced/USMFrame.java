@@ -13,6 +13,14 @@ import org.archive.rms.data.TUser;
 public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	//
 	public static final double EPSILON = 0.1;
+	protected static double _defaultWeightScale = 20;
+	
+	////bounded max & min
+	public static final double _MIN = -10000;
+	public static final double _MAX = -_MIN;
+	public static final double _MIN_Pro = 0.0001;
+	public static final double _MAX_Pro = 1-_MIN_Pro;
+	//
 	
 	//optimizer
 	protected LBFGS _lbfgsOptimizer;
@@ -42,6 +50,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	 * initialize the parameters, i.e., the weights w.r.t. each feature.
 	 * **/
 	protected abstract void ini();
+	protected abstract void iniFeatures();
 	protected abstract void iniWeightVector();
 	/**
 	 * refresh based on new weights, or preliminary call after initializing the weights
@@ -66,8 +75,23 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 		
 		for(int i=0; i<this._trainNum; i++){
 			TQuery tQuery = this._QSessionList.get(i);
+			
+			tQuery.calQSessionPro();	
+			
 			double satPro = tQuery.getQSessionPro();
-			objVal += Math.log(satPro);
+			
+			double logVal;
+			if(0 == satPro){
+				logVal = this._MIN;
+			}else if (Double.isNaN(satPro)) {
+				System.out.println("objective function satPro:\t"+satPro);		
+				logVal = Double.NaN;
+				System.exit(0);
+			}else{
+				logVal = Math.log(satPro);
+			}
+			
+			objVal += logVal;
 		}
 		
 		return objVal;		
@@ -128,6 +152,17 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 			}
 		}
 		
+		for(int k=1; k<=gTruthClickSeq.size(); k++){
+			if(gTruthClickSeq.get(k-1) && Double.isNaN(gTruthBasedSatProList.get(k-1))){
+				System.out.println(gTruthClickSeq);
+				System.out.println(tQuery._gTruthBasedMarValList);
+				System.out.println(gTruthBasedCumuValList);
+				System.out.println(gTruthBasedSatProList);
+				System.err.println("calGTruthBasedSatPros:\t"+k);
+				System.exit(0);
+			}			
+		}
+		
 		tQuery.setGTruthBasedSatPros(gTruthBasedSatProList);
 	}
 	/**
@@ -159,5 +194,5 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	//estimating mean and standard deviation
 	protected abstract void getReleFeatureMeanStdVariance(double[] mean, double[] stdVar);
 	//
-	protected abstract void normalize();
+	protected abstract void normalizeFeatures();
 }
