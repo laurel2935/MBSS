@@ -5,7 +5,6 @@ import java.util.Random;
 
 import org.archive.access.feature.IAccessor;
 import org.archive.rms.data.TQuery;
-import org.archive.rms.data.TUser;
 import org.archive.rms.data.TQuery.MarStyle;
 import org.archive.rms.data.TUrl;
 
@@ -171,15 +170,7 @@ public class MClickModel extends USMFrame{
 
 				System.out.println("Iter-"+iter+":\tObjValue: "+f);
 				
-				calFunctionGradient(g);				
-				
-				//--
-				System.out.print("g::: ");
-				for(int i=0; i<g.length; i++){
-					System.out.print(g[i]+"\t");
-				}		
-				System.out.println();
-				//--
+				calFunctionGradient(g);					
 				
 				MatrixOps.timesEquals(g, -1);
 			}
@@ -196,9 +187,8 @@ public class MClickModel extends USMFrame{
 				System.err.println("[Warning]M-step cannot proceed!");
 			}	
 			
-			System.out.println("..."+iter);
-			outputParas();
-			System.out.println();
+			//outputParas();
+			//System.out.println();
 			
 		}while(iflag[0]>0 && ++iter<maxIter);
 	}
@@ -207,7 +197,7 @@ public class MClickModel extends USMFrame{
 	 * needs refresh
 	 * **/
 	private void calFunctionGradient(double[] g){		
-		//rele part
+		////rele part
 		double [] total_rele_parGradient = new double[IAccessor._releFeatureLength];		
 		for(int k=0; k<this._trainNum; k++){
 			TQuery tQuery = this._QSessionList.get(k);
@@ -228,7 +218,7 @@ public class MClickModel extends USMFrame{
 			g[i] = total_rele_parGradient[i];
 		}
 		
-		//mar part
+		////mar part
 		double [] total_mar_parGradient = new double[IAccessor._marFeatureLength];		
 		for(int k=0; k<this._trainNum; k++){
 			TQuery tQuery = this._QSessionList.get(k);
@@ -245,7 +235,7 @@ public class MClickModel extends USMFrame{
 			}
 		}
 		
-		//context part		
+		////context part		
 		for(int j=0; j<IAccessor._marFeatureLength; j++){
 			g[IAccessor._releFeatureLength+j] = total_mar_parGradient[j];
 		}		
@@ -376,9 +366,7 @@ public class MClickModel extends USMFrame{
 	/**
 	 * 
 	 * **/
-	protected void calGTruthBasedCumuVals(TQuery tQuery){
-		//System.out.println("---");
-		
+	protected void calGTruthBasedCumuVals(TQuery tQuery){		
 		calGTruthBasedMarVals(tQuery);
 		
 		ArrayList<Double> gTruthBasedCumuValList = new ArrayList<>();

@@ -47,7 +47,6 @@ public class MAnalyzer {
 	protected int _testNum;
 	protected ArrayList<TQuery> _QSessionList;
 	//--
-	protected static FRoot _fRoot = new FRoot();
 	
 	public static final String NEWLINE = System.getProperty("line.separator");
 	protected static final String QSessionLine = "QSession";
@@ -275,7 +274,7 @@ public class MAnalyzer {
 	 * **/
 	protected void bufferAcceptedSessions(ArrayList<TUser> tUserList) {
 		try {
-			String targetFile = _fRoot._bufferDir+"SimplifiedSessions"
+			String targetFile = FRoot._bufferDir+"SimplifiedSessions"
 					+"_"+Integer.toString(this._threshold_UnavailableHtml_ClickedUrl)
 					+"_"+Integer.toString(this._threshold_UnavailableHtml_NonClickedUrl)
 					+"_"+Integer.toString(this._totalAcceptedSessions)+".txt";
@@ -309,7 +308,7 @@ public class MAnalyzer {
 	}
 	
 	protected ArrayList<SimQSession> loadAcceptedSessions() {
-		String simSessionFile = _fRoot._bufferDir+"SimplifiedSessions"
+		String simSessionFile = FRoot._bufferDir+"SimplifiedSessions"
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_ClickedUrl)
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_NonClickedUrl)
 				+"_"+Integer.toString(this._totalAcceptedSessions)+".txt";
@@ -445,7 +444,7 @@ public class MAnalyzer {
 	////w.r.t. features	
 	public void bufferReleFeature(ArrayList<SimQSession> simQSessionList){
 		
-		String targetFile = _fRoot._bufferDir+"RelevanceFeatureVectors"
+		String targetFile = FRoot._bufferDir+"RelevanceFeatureVectors"
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_ClickedUrl)
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_NonClickedUrl)
 				+"_"+Integer.toString(this._totalAcceptedSessions)+".txt";
@@ -485,7 +484,7 @@ public class MAnalyzer {
 	//part-1
 	public HashMap<String, ArrayList<Double>> loadRFeatureVectors(){
 		
-		String targetFile = _fRoot._bufferDir+"RelevanceFeatureVectors"
+		String targetFile = FRoot._bufferDir+"RelevanceFeatureVectors"
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_ClickedUrl)
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_NonClickedUrl)
 				+"_"+Integer.toString(this._totalAcceptedSessions)+".txt";
@@ -524,7 +523,7 @@ public class MAnalyzer {
 	//part-2
 	public void bufferMarFeature(boolean check, ArrayList<SimQSession> simQSessionList){
 		
-		String targetFile = _fRoot._bufferDir+"MarginalRelevanceFeatureVectors"
+		String targetFile = FRoot._bufferDir+"MarginalRelevanceFeatureVectors"
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_ClickedUrl)
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_NonClickedUrl)
 				+"_"+Integer.toString(this._totalAcceptedSessions)+".txt";
@@ -568,11 +567,11 @@ public class MAnalyzer {
 			for(int i=0; i<threshold; i++){
 				System.out.println("Buffering mar-session-"+i);
 				
-				SimQSession simQSession = simQSessionList.get(i);
-				
+				SimQSession simQSession = simQSessionList.get(i);				
 				String qText = simQSession.getQueryText();
 				ArrayList<String> docNoList = simQSession.getDocList();
 				
+				//call per query
 				SimpleTensor mTensor = _iAccessor.getMFeature(false, _iAccessor.getDocStyle(), qText, docNoList, textCollection, tfidfKernelMap, ldaKernelMap);
 				
 				String mTensorString = getMFeatureVector(mTensor);
@@ -621,7 +620,7 @@ public class MAnalyzer {
 	}
 	
 	public HashMap<String, SimpleTensor> loadMarFeatureVectors(){
-		String targetFile = _fRoot._bufferDir+"MarginalRelevanceFeatureVectors"
+		String targetFile = FRoot._bufferDir+"MarginalRelevanceFeatureVectors"
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_ClickedUrl)
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_NonClickedUrl)
 				+"_"+Integer.toString(this._totalAcceptedSessions)+".txt";

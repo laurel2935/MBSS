@@ -476,6 +476,6 @@ public class T_UBM extends MAnalyzer implements T_Evaluation {
 		T_UBM t_UBM = new T_UBM(0.75, 0.2, 0.5, 0.5);
 		t_UBM.train();
 		//-4928.668887248367
-		System.out.println(t_UBM.getTestCorpusProb(false));
+		System.out.println(t_UBM.getTestCorpusProb(true));
 	}
 }

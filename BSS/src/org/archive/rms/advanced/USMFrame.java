@@ -8,7 +8,6 @@ import optimizer.LBFGS.ExceptionWithIflag;
 import org.archive.rms.clickmodels.T_Evaluation;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
-import org.archive.rms.data.TUser;
 
 public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	//
@@ -56,6 +55,10 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	protected abstract void ini();
 	protected abstract void iniFeatures();
 	protected abstract void iniWeightVector();
+	
+	protected abstract void optimize(int maxIter) throws ExceptionWithIflag;
+	
+	
 	/**
 	 * refresh based on new weights, or preliminary call after initializing the weights
 	 * e.g., for consistent refresh w.r.t. both gradient and objectiveFunction
@@ -67,12 +70,9 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 		}		
 	}
 	
-	protected abstract void optimize(int maxIter) throws ExceptionWithIflag;
-	
 	/**
 	 * get the objective function value (log based version)
-	 * needs refresh
-	 * 
+	 * needs refresh 
 	 * **/
 	protected double calObjFunctionValue(){
 		double objVal = 0.0;
@@ -96,6 +96,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 		
 		return objVal;		
 	}
+	
 	/**
 	 * perform training
 	 * **/
@@ -104,8 +105,8 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 		
 		int defaultMaxItr = 50;
 		
-		System.out.println("Parameters Before Optimizing:");
-		outputParas();
+		//System.out.println("Parameters Before Optimizing:");
+		//outputParas();
 		
 		try {
 			
@@ -116,11 +117,9 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 			e.printStackTrace();
 		}
 		
-		System.out.println("Parameters After Optimizing:");
-		outputParas();
-	}
-	
-	
+		//System.out.println("Parameters After Optimizing:");
+		//outputParas();
+	}	
 	
 	public double getClickProb(TQuery tQuery, TUrl tUrl){
 		return Double.NaN;

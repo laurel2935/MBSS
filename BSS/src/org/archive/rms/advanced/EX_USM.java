@@ -11,9 +11,6 @@ import org.archive.rms.clickmodels.T_Evaluation;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 
-import session.Query;
-import session.URL;
-import session.User;
 import cc.mallet.types.MatrixOps;
 
 /**
@@ -42,7 +39,7 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		iniFeatures();
 		
 		//normalize features
-		normalizeFeatures();
+		//normalizeFeatures();
 		
 		//2
 		iniWeightVector();		
@@ -86,7 +83,7 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		
 		_rele_context_weights =new double[IAccessor._releFeatureLength];
 		
-		double weightScale = this._defaultWeightScale;
+		double weightScale = _defaultWeightScale;
 		
 		Random rand = new Random();
 		for(int i=0; i<_rele_context_weights.length; i++){
@@ -131,8 +128,6 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 			} catch (ExceptionWithIflag ex){
 				System.err.println("[Warning]M-step cannot proceed!");
 			}	
-			
-			System.out.println("..."+iter);
 			
 		}while(iflag[0]>0 && ++iter<maxIter);
 	}
