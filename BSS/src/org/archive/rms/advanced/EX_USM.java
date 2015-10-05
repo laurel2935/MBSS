@@ -149,13 +149,22 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 			TQuery tQuery = this._QSessionList.get(k);
 			
 			double [] rele_parGradient = tQuery.calRelePartialGradient_NoMarginal();
+			
+			for(double releF: rele_parGradient){
+				if(Double.isNaN(releF) || Double.isInfinite(releF)){
+					System.out.println("rele gradient error!");
+					System.out.println(releF);
+					System.exit(0);
+				}
+			}			
+			
 			for(int i=0; i<IAccessor._releFeatureLength; i++){
 				total_rele_parGradient[i] += rele_parGradient[i];
 			}
 		}		
 		
 		for(int i=0; i<IAccessor._releFeatureLength; i++){
-			g[i] = total_rele_parGradient[i];
+			g[i] = total_rele_parGradient[i];			
 		}	
 	}
 	
@@ -182,7 +191,15 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			double sessionPro = tQuery.getQSessionPro();
-			corpusLikelihood += Math.log(sessionPro);
+			
+			double logVal;
+			if(0 == sessionPro){
+				logVal = USMFrame._MIN;
+			}else{
+				logVal = Math.log(sessionPro);
+			}
+			
+			corpusLikelihood += logVal;
 		}
 		//the higher the better
 		return corpusLikelihood;	
@@ -204,7 +221,20 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		double dotProVal = dotProduct(releFreatureVector, releParas);
 		double releVal = Math.exp(dotProVal);
 		
-		tUrl.setReleVal(releVal);	
+		tUrl.setReleVal(releVal);
+		
+		///*
+		if(Double.isNaN(releVal) || Double.isInfinite(releVal)){
+			System.out.println("calReleVals:\tdotProVal:"+dotProVal+"\t"+"mar:"+releVal);
+			//--					
+			for(int i=0; i<releFreatureVector.length; i++){
+				System.out.print(releParas[i]+" : "+releFreatureVector[i]+"\t");
+			}		
+			System.out.println();
+			//--
+			System.exit(0);
+		}
+		//*/
 		
 		return releVal;
 	}
@@ -214,7 +244,8 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		
 		double releVal;		
 		for(TUrl tUrl: tQuery.getUrlList()){
-			releVal = calReleVal(tUrl);
+			releVal = calReleVal(tUrl);		
+			
 			gTruthBasedReleValList.add(releVal);
 		}	
 		

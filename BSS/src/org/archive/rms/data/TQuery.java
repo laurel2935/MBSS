@@ -4,15 +4,11 @@ import java.util.ArrayList;
 
 import org.archive.access.feature.IAccessor;
 import org.archive.access.utility.SimpleTensor;
-import org.archive.rms.advanced.MAnalyzer;
 import org.archive.rms.advanced.MClickModel;
 import org.archive.rms.advanced.USMFrame;
 import org.ejml.simple.SimpleMatrix;
 
-/**
- * Current assumption:
- * 1 non-clicked documents that locate below the clicked documents have zero marginal utility
- * **/
+
 
 public class TQuery {
 	//
@@ -24,6 +20,7 @@ public class TQuery {
 	String _queryText;
 	
 	ArrayList<TUrl> _urlList;
+	//the likelihood of being observed
 	double _sessionPro;
 	
 	//
@@ -33,6 +30,7 @@ public class TQuery {
 	//for marginal utility based cumulative utility
 	public ArrayList<Double>  _gTruthBasedMarValList;
 	//corresponding to each clicked position
+	//
 	ArrayList<Double>  _gTruthBasedCumuUtilityList;
 	ArrayList<Double>  _gTruthBasedSatProList;
 	
@@ -129,15 +127,7 @@ public class TQuery {
 				//distance to prior click
 				double ctxt_DisToLastClick = tUrl.getDisToLastClick();
 				marFeatureVec.add(ctxt_DisToLastClick);	
-				
-				//double [] feaVec = MAnalyzer.toDArray(marFeatureVec);
-				for(Double f: marFeatureVec){
-					if(!Double.isFinite(f) || Double.isNaN(f)){
-						System.err.println("ini mar feature error!");
-						System.exit(0);
-					}
-				}
-				
+							
 				_gTruthBasedMarFeatureList.add(marFeatureVec);				
 			}else {
 				_gTruthBasedMarFeatureList.add(null);
@@ -201,7 +191,7 @@ public class TQuery {
 		for(int s=0; s<sliceNum; s++){
 			SimpleMatrix fMatrix = _marTensor.getSlice(s);
 			
-			marFeatureVector[s] = Double.MAX_VALUE;
+			marFeatureVector[s] = USMFrame._MAX;
 			
 			for(Integer iRank: priorClicks){
 				double i_k_s_MarFVal = fMatrix.get(iRank-1, kRank-1);
@@ -210,7 +200,7 @@ public class TQuery {
 				}
 			}
 			
-			if(Double.MAX_VALUE == marFeatureVector[s]){
+			if(USMFrame._MAX == marFeatureVector[s]){
 				marFeatureVector[s] = 0;
 			}
 		}
@@ -300,6 +290,9 @@ public class TQuery {
 		}			
 	}
 	
+	////////
+	//Gradient
+	///////
 	/**
 	 * 
 	 * **/
@@ -311,86 +304,91 @@ public class TQuery {
 		if(firstC < lastC){//at least two clicks
 			int len = this._urlList.get(0).getReleFeatures().length;
 			
-			//w.r.t. first click			
-			double [] part1 = new double [len];
-			
+			////w.r.t. first click			
+			double [] part1 = new double [len];			
 			double firstC_releVal = this._urlList.get(firstC-1).getReleValue();
 			double p1_seg_1 = 1/(1-_gTruthBasedSatProList.get(firstC-1));
-			if(Double.isNaN(p1_seg_1) || p1_seg_1>USMFrame._MAX){
+			//being infinity
+			if(USMFrame.isInfinityOptVal(p1_seg_1) && USMFrame.acceptInfinityOptVal()){
 				p1_seg_1 = USMFrame._MAX;
 			}
 			double p1_seg_2 = -1.0;
 			double p1_seg_3 = Math.exp(MClickModel.EPSILON+firstC_releVal)/Math.pow(1+Math.exp(MClickModel.EPSILON+firstC_releVal), 2);
+			//being NaN
+			if(USMFrame.isNaNOptVal(p1_seg_3) && USMFrame.acceptNaNOptVal()){
+				p1_seg_3 = 0;
+			}
+			
 			double p1_seg_4 = firstC_releVal;
 			for(int i=0; i<len; i++){
 				double [] firstCFeVector = this._urlList.get(firstC-1).getReleFeatures();
 				double p1_seg_5 = firstCFeVector[i];
-				
-				if(Double.isNaN(p1_seg_5)){
-					System.err.println("NaN rele feature error!");
+				//being NaN feature				
+				if(USMFrame.isNaNFeature(p1_seg_5) && USMFrame.acceptNaNFeature()){
 					p1_seg_5 = 0;
-				}
-				
-				
+				}				
 				part1[i] = p1_seg_1*p1_seg_2*p1_seg_3*p1_seg_4*p1_seg_5;
-			}			
-			//2nd-click - (lastC-1)-click
+			}		
+			
+			////2nd-click - (lastC-1)-click
 			double [] part2 = new double [len];			
 			int secondClick   = getSubsequentClickPosition(firstC);
 			int clickAboveLast= getPriorClickPosition(lastC);
 			
 			for(int cRank=secondClick; cRank<=clickAboveLast; cRank=getSubsequentClickPosition(cRank)){				
 				double p2_seg_1 = 1/(1-_gTruthBasedSatProList.get(cRank-1));
-				
-				if(Double.isNaN(p2_seg_1) || p2_seg_1>USMFrame._MAX){
+				//being infinity
+				if(USMFrame.isInfinityOptVal(p2_seg_1) && USMFrame.acceptInfinityOptVal()){
 					p2_seg_1 = USMFrame._MAX;
 				}
 				
 				double p2_seg_2 = -1.0;
 				double p2_seg_3 = Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(cRank-1))/Math.pow(1+Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(cRank-1)), 2);
+				//being NaN
+				if(USMFrame.isNaNOptVal(p2_seg_3) && USMFrame.acceptNaNOptVal()){
+					p2_seg_3 = 0;
+				}
+				
 				double p2_seg_4 = firstC_releVal;
 				for(int i=0; i<len; i++){
 					double [] firstCFeVector = this._urlList.get(firstC-1).getReleFeatures();
 					double p2_seg_5 = firstCFeVector[i];
-					
-					if(Double.isNaN(p2_seg_5)){
-						System.err.println("NaN rele-p2 feature error!");
+					//being NaN feature
+					if(USMFrame.isNaNFeature(p2_seg_5) && USMFrame.acceptNaNFeature()){
 						p2_seg_5 = 0;
 					}					
-					
 					part2[i] += p2_seg_1*p2_seg_2*p2_seg_3*p2_seg_4*p2_seg_5;
 				}				
 			}			
-			//last click
-			double [] part3 = new double[len];
-			double p3_seg_1 = 1/_gTruthBasedSatProList.get(lastC-1);
 			
-			if(Double.isNaN(p3_seg_1) || p3_seg_1>USMFrame._MAX){
+			////last click
+			double [] part3 = new double[len];
+			double p3_seg_1 = 1/_gTruthBasedSatProList.get(lastC-1);			
+			if(USMFrame.isInfinityOptVal(p3_seg_1) && USMFrame.acceptInfinityOptVal()){
 				p3_seg_1 = USMFrame._MAX;
 			}			
 			
 			double p3_seg_2 = Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(lastC-1))/Math.pow(1+Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(lastC-1)), 2);
+			//being NaN
+			if(USMFrame.isNaNOptVal(p3_seg_2) && USMFrame.acceptNaNOptVal()){
+				p3_seg_2 = 0;
+			}
+			
 			double p3_seg_3 = firstC_releVal;
 			for(int i=0; i<len; i++){
 				double [] firstCFeVector = this._urlList.get(firstC-1).getReleFeatures();
 				double p3_seg_4 = firstCFeVector[i];
-				
-				if(Double.isNaN(p3_seg_4)){
-					System.err.println("NaN rele-p3 feature error!");
+				//being NaN feature
+				if(USMFrame.isNaNFeature(p3_seg_4) && USMFrame.acceptNaNFeature()){
 					p3_seg_4 = 0;
-				}
-				
+				}				
 				part3[i] = p3_seg_1*p3_seg_2*p3_seg_3*p3_seg_4;
 			}
 			
 			//combined partial gradient
 			double [] rele_parGradient = new double[len];
-			for(int i=0; i<len; i++){
+			for(int i=0; i<len; i++){				
 				rele_parGradient[i] = part1[i]+part2[i]+part3[i];
-				
-				if(Double.isNaN(rele_parGradient[i])){
-					rele_parGradient[i] = 0;
-				}
 			}
 			
 			return rele_parGradient;			
@@ -398,76 +396,113 @@ public class TQuery {
 			return null;
 		}		
 	}
-	
-	public double [] calRelePartialGradient_NoMarginal(){
-		
+	//
+	public double [] calRelePartialGradient_NoMarginal(){		
 		int firstC = getFirstClickPosition();
 		int lastC =  getLastClickPosition();
 		
 		if(firstC < lastC){//at least two clicks
 			int len = this._urlList.get(0).getReleFeatures().length;
 			
-			//w.r.t. first click			
-			double [] part1 = new double [len];
-			
+			///w.r.t. first click			
+			double [] part1 = new double [len];			
 			double firstC_releVal = this._urlList.get(firstC-1).getReleValue();
 			double p1_seg_1 = 1/(1-_gTruthBasedSatProList.get(firstC-1));
+			if(USMFrame.isInfinityOptVal(p1_seg_1) && USMFrame.acceptInfinityOptVal()){
+				p1_seg_1 = USMFrame._MAX;
+			}
+			
 			double p1_seg_2 = -1.0;
 			double p1_seg_3 = Math.exp(MClickModel.EPSILON+firstC_releVal)/Math.pow(1+Math.exp(MClickModel.EPSILON+firstC_releVal), 2);
+			//being NaN
+			if(USMFrame.isNaNOptVal(p1_seg_3) && USMFrame.acceptNaNOptVal()){
+				p1_seg_3 = 0;
+			}
+			
 			double p1_seg_4 = firstC_releVal;
 			for(int i=0; i<len; i++){
 				double [] firstCFeVector = this._urlList.get(firstC-1).getReleFeatures();
 				double p1_seg_5 = firstCFeVector[i];
+				//being NaN feature				
+				if(USMFrame.isNaNFeature(p1_seg_5) && USMFrame.acceptNaNFeature()){
+					p1_seg_5 = 0;
+				}
+				
 				part1[i] = p1_seg_1*p1_seg_2*p1_seg_3*p1_seg_4*p1_seg_5;
 			}			
 			
-			//2nd-click - (lastC-1)-click
+			////2nd-click - (lastC-1)-click
 			double [] part2 = new double [len];			
 			int secondClick   = getSubsequentClickPosition(firstC);
 			int clickAboveLast= getPriorClickPosition(lastC);
 						
 			for(int cRank=secondClick; cRank<=clickAboveLast; cRank=getSubsequentClickPosition(cRank)){				
-				double p2_seg_1 = 1/(1-_gTruthBasedSatProList.get(cRank-1));
+				double p2_seg_1 = 1/(1-_gTruthBasedSatProList.get(cRank-1));				
+				if(USMFrame.isInfinityOptVal(p2_seg_1) && USMFrame.acceptInfinityOptVal()){
+					p2_seg_1 = USMFrame._MAX;
+				}
+				
 				double p2_seg_2 = -1.0;
 				double p2_seg_3 = Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(cRank-1))/Math.pow(1+Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(cRank-1)), 2);
+				//being NaN
+				if(USMFrame.isNaNOptVal(p2_seg_3) && USMFrame.acceptNaNOptVal()){
+					p2_seg_3 = 0;
+				}				
 				//
 				double [] p2_seg_4 = new double [len];
 				ArrayList<Integer> priorRanks = getPriorClicks(cRank);
 				for(Integer priorRank: priorRanks){
-					for(int i=0; i<len; i++){
-						p2_seg_4[i] += (this._gTruthBasedReleValList.get(priorRank-1)*this._urlList.get(priorRank-1).getReleFeatures()[i]);
+					for(int i=0; i<len; i++){						
+						double p2_seg_5 = this._urlList.get(priorRank-1).getReleFeatures()[i];
+						//being NaN feature				
+						if(USMFrame.isNaNFeature(p2_seg_5) && USMFrame.acceptNaNFeature()){
+							p2_seg_5 = 0;
+						}
+						
+						p2_seg_4[i] += (this._gTruthBasedReleValList.get(priorRank-1)*p2_seg_5);
 					}					
 				}				
 				//
 				for(int i=0; i<len; i++){
-					//double [] firstCFeVector = this._urlList.get(firstC-1).getReleFeatures();
-					//double p2_seg_5 = firstCFeVector[i];
 					part2[i] += p2_seg_1*p2_seg_2*p2_seg_3*p2_seg_4[i];
 				}				
 			}			
 			
-			//last click
+			////last click
 			double [] part3 = new double[len];
 			double p3_seg_1 = 1/_gTruthBasedSatProList.get(lastC-1);
+			if(USMFrame.isInfinityOptVal(p3_seg_1) && USMFrame.acceptInfinityOptVal()){
+				p3_seg_1 = USMFrame._MAX;
+			}
+						
 			double p3_seg_2 = Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(lastC-1))/Math.pow(1+Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(lastC-1)), 2);
+			//being NaN
+			if(USMFrame.isNaNOptVal(p3_seg_2) && USMFrame.acceptNaNOptVal()){
+				p3_seg_2 = 0;
+			}
+			
 			//double p3_seg_3 = firstC_releVal;
 			double [] p3_seg_3 = new double [len];
 			ArrayList<Integer> priorRanks = getPriorClicks(lastC);
 			for(Integer priorRank: priorRanks){
 				for(int i=0; i<len; i++){
-					p3_seg_3[i] += (this._gTruthBasedReleValList.get(priorRank-1)*this._urlList.get(priorRank-1).getReleFeatures()[i]);
+					double p3_seg_4 = this._urlList.get(priorRank-1).getReleFeatures()[i];
+					//being NaN feature				
+					if(USMFrame.isNaNFeature(p3_seg_4) && USMFrame.acceptNaNFeature()){
+						p3_seg_4 = 0;
+					}
+					
+					p3_seg_3[i] += (this._gTruthBasedReleValList.get(priorRank-1)*p3_seg_4);					
 				}
 			}
 			//
-			for(int i=0; i<len; i++){
-				//double [] firstCFeVector = this._urlList.get(firstC-1).getReleFeatures();
-				//double p3_seg_4 = firstCFeVector[i];
-				part3[i] = p3_seg_1*p3_seg_2*p3_seg_3[i];
+			for(int i=0; i<len; i++){				
+				part3[i] = p3_seg_1*p3_seg_2*p3_seg_3[i];				
 			}
 			
 			//combined partial gradient
 			double [] rele_parGradient = new double[len];
-			for(int i=0; i<len; i++){
+			for(int i=0; i<len; i++){				
 				rele_parGradient[i] = part1[i]+part2[i]+part3[i];
 			}
 			
@@ -476,8 +511,6 @@ public class TQuery {
 			return null;
 		}		
 	}
-	
-	
 	/**
 	 * 
 	 * **/
@@ -488,22 +521,25 @@ public class TQuery {
 		if(firstC < lastC){
 			//int len = this._marTensor.numSlices();
 			int len = IAccessor._marFeatureLength;
-			
-			double firstC_releVal = this._urlList.get(firstC-1).getReleValue();
-			//part-1
+						
+			////part-1
 			double [] mar_part1 = new double [len];
 			int secondClick   = getSubsequentClickPosition(firstC);
 			int clickAboveLast= getPriorClickPosition(lastC);
 			
 			for(int cRank=secondClick; cRank<=clickAboveLast; cRank=getSubsequentClickPosition(cRank)){
 				double mar_p1_seg_1 = 1/(1-_gTruthBasedSatProList.get(cRank-1));
-				
-				if(Double.isNaN(mar_p1_seg_1) || mar_p1_seg_1>USMFrame._MAX){
+				//being infinity
+				if(USMFrame.isInfinityOptVal(mar_p1_seg_1) && USMFrame.acceptInfinityOptVal()){
 					mar_p1_seg_1 = USMFrame._MAX;
 				}				
 				
 				double mar_p1_seg_2 = -1.0;
 				double mar_p1_seg_3 = Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(cRank-1))/Math.pow(1+Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(cRank-1)), 2);
+				//being NaN
+				if(USMFrame.isNaNOptVal(mar_p1_seg_3) && USMFrame.acceptNaNOptVal()){
+					mar_p1_seg_3 = 0;
+				}
 				
 				//double mar_p1_seg_4 = _gTruthBasedCumuUtilityList.get(cRank-1)-firstC_releVal;	
 				double [] mar_p1_seg_4 = new double [len];				
@@ -512,33 +548,35 @@ public class TQuery {
 					Integer pos = priorRanks.get(k);
 					double [] marFeatureVec = getMarFeature(pos);					
 					
-					for(int i=0; i<len; i++){
-						
+					for(int i=0; i<len; i++){						
 						double marFeaVal = marFeatureVec[i];
-						if(Double.isNaN(marFeaVal)){
-							System.err.println("NaN rele feature error!");
+						//being NaN feature
+						if(USMFrame.isNaNFeature(marFeaVal) && USMFrame.acceptNaNFeature()){
 							marFeaVal = 0;
 						}
 						
 						mar_p1_seg_4[i] += (this._gTruthBasedMarValList.get(pos-1)*marFeaVal);
 					}
-				}				
-				
+				}								
 				//
 				for(int i=0; i<len; i++){					
-					//double mar_p1_seg_5 = marFeatureVec[i];
 					mar_part1[i] += mar_p1_seg_1*mar_p1_seg_2*mar_p1_seg_3*mar_p1_seg_4[i];					
 				}
 			}
-			//part-2
+			
+			////part-2
 			double [] mar_part2 = new double [len];
 			double mar_p2_seg_1 = 1/(_gTruthBasedSatProList.get(lastC-1));
-			
-			if(Double.isNaN(mar_p2_seg_1) || mar_p2_seg_1>USMFrame._MAX){
+			//being infinity
+			if(USMFrame.isInfinityOptVal(mar_p2_seg_1) && USMFrame.acceptInfinityOptVal()){
 				mar_p2_seg_1 = USMFrame._MAX;
 			}
 			
 			double mar_p2_seg_2 = Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(lastC-1))/Math.pow(1+Math.exp(MClickModel.EPSILON+_gTruthBasedCumuUtilityList.get(lastC-1)), 2);
+			//being NaN
+			if(USMFrame.isNaNOptVal(mar_p2_seg_2) && USMFrame.acceptNaNOptVal()){
+				mar_p2_seg_2 = 0;
+			}
 			
 			//double mar_p2_seg_3 = _gTruthBasedCumuUtilityList.get(lastC-1)-firstC_releVal;
 			double [] mar_p2_seg_3 = new double [len];
@@ -546,11 +584,10 @@ public class TQuery {
 			for(int k=1; k<priorRanks.size(); k++){
 				Integer pos = priorRanks.get(k);
 				double [] marFeatureVec = getMarFeature(pos);
-				for(int i=0; i<len; i++){
-					
+				for(int i=0; i<len; i++){					
 					double marFeaVal = marFeatureVec[i];
-					if(Double.isNaN(marFeaVal)){
-						System.err.println("NaN rele feature error!");
+					//being NaN feature
+					if(USMFrame.isNaNFeature(marFeaVal) && USMFrame.acceptNaNFeature()){
 						marFeaVal = 0;
 					}
 					
@@ -559,7 +596,6 @@ public class TQuery {
 			}			
 			
 			for(int i=0; i<len; i++){
-				//double mar_p2_seg_4 = marFeatureVec[i];
 				mar_part2[i] = mar_p2_seg_1*mar_p2_seg_2*mar_p2_seg_3[i];
 			}
 			
@@ -567,10 +603,6 @@ public class TQuery {
 			double [] mar_parGradient = new double[len];
 			for(int i=0; i<len; i++){
 				mar_parGradient[i] = mar_part1[i]+mar_part2[i];
-				
-				if(Double.isNaN(mar_parGradient[i])){
-					mar_parGradient[i] = 0;
-				}
 			}
 			
 			return mar_parGradient;

@@ -15,12 +15,16 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	public static final double EPSILON = 0.1;
 	protected static double _defaultWeightScale = 20;
 	
-	////bounded max & min
-	public static final double _MIN = -10000;
+	////
+	public static final boolean _acceptError_NaN_Feature = true;
+	public static final boolean _acceptError_Opt_NaNVal = true;
+	public static final boolean _acceptError_Opt_Infinity = true;
+	////bounded integer max & min
+	public static final double _MIN = -100000;
 	public static final double _MAX = -_MIN;
-	public static final double _MIN_Pro = 0.0001;
-	public static final double _MAX_Pro = 1-_MIN_Pro;
-	//
+	////bounded probability min & max
+	public static final double _MIN_Pro = 0.00001;
+	public static final double _MAX_Pro = 1-_MIN_Pro;	
 	
 	//optimizer
 	protected LBFGS _lbfgsOptimizer;
@@ -195,4 +199,25 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	protected abstract void getReleFeatureMeanStdVariance(double[] mean, double[] stdVar);
 	//
 	protected abstract void normalizeFeatures();
+	//
+	public static boolean isNaNFeature(double val){
+		return Double.isNaN(val);
+	}
+	public static boolean acceptNaNFeature(){
+		return _acceptError_NaN_Feature;
+	}
+	public static boolean isNaNOptVal(double optVal){
+		return Double.isNaN(optVal);
+	}
+	public static boolean acceptNaNOptVal(){
+		return _acceptError_Opt_NaNVal;
+	}
+	public static boolean isInfinityOptVal(double optVal){
+		return Double.isInfinite(optVal);
+	}
+	public static boolean acceptInfinityOptVal(){
+		return _acceptError_Opt_Infinity;
+	}
+	
+	
 }

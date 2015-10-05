@@ -18,6 +18,9 @@ import optimizer.LBFGS.ExceptionWithIflag;
  * 
  * Underlying association:
  * (1) Premise: for the input of "ArrayList<TUser> userList", all the required rele-features and mar-features are loaded 
+ * 
+ * Current assumption:
+ * 1 non-clicked documents that locate below the clicked documents have zero marginal utility
  * **/
 
 public class MClickModel extends USMFrame{
@@ -84,8 +87,7 @@ public class MClickModel extends USMFrame{
 	
 	protected  void iniFeatures(){
 		
-		for(TQuery tQuery: this._QSessionList){
-			
+		for(TQuery tQuery: this._QSessionList){			
 			//context information
 			tQuery.calContextInfor();			
 			
@@ -114,13 +116,6 @@ public class MClickModel extends USMFrame{
 				
 				double []releFeatureVec = toDArray(releFeatureList);
 				
-				for(double f: releFeatureVec){
-					if(Double.isNaN(f)){
-						System.err.println("ini NaN feature error!");
-						System.exit(0);
-					}
-				}
-				
 				tUrl.setReleFeatureVector(releFeatureVec);
 			}				
 		}
@@ -137,11 +132,10 @@ public class MClickModel extends USMFrame{
 	}
 	
 	@Override
-	protected void iniWeightVector(){
-		
+	protected void iniWeightVector(){		
 		_rele_mar_weights =new double[IAccessor._releFeatureLength+IAccessor._marFeatureLength];
 		
-		double weightScale = this._defaultWeightScale;;
+		double weightScale = _defaultWeightScale;;
 		
 		Random rand = new Random();
 		for(int i=0; i<_rele_mar_weights.length; i++){
@@ -170,6 +164,7 @@ public class MClickModel extends USMFrame{
 				
 				//function value based on the posterior graph inference! 
 				f = calObjFunctionValue();
+				
 				if(f > USMFrame._MAX){
 					f = USMFrame._MAX;
 				}
@@ -213,15 +208,13 @@ public class MClickModel extends USMFrame{
 	 * **/
 	private void calFunctionGradient(double[] g){		
 		//rele part
-		double [] total_rele_parGradient = new double[IAccessor._releFeatureLength];
-		
+		double [] total_rele_parGradient = new double[IAccessor._releFeatureLength];		
 		for(int k=0; k<this._trainNum; k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			
 			double [] rele_parGradient = tQuery.calRelePartialGradient();
-			//System.out.println("L:\t"+rele_parGradient.length);
 			for(int i=0; i<IAccessor._releFeatureLength; i++){
-				
+				//!!!
 				if(Double.isNaN(rele_parGradient[i])){
 					System.out.println("NaN rele gradient:\t");
 					System.exit(0);
@@ -236,15 +229,13 @@ public class MClickModel extends USMFrame{
 		}
 		
 		//mar part
-		double [] total_mar_parGradient = new double[IAccessor._marFeatureLength];
-		
+		double [] total_mar_parGradient = new double[IAccessor._marFeatureLength];		
 		for(int k=0; k<this._trainNum; k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			
-			double [] mar_parGradient = tQuery.calMarPartialGradient();
-			
+			double [] mar_parGradient = tQuery.calMarPartialGradient();			
 			for(int j=0; j<IAccessor._marFeatureLength; j++){
-				
+				//!!!
 				if(Double.isNaN(mar_parGradient[j])){
 					System.out.println("NaN  mar gradient:\t");
 					System.exit(0);
@@ -254,8 +245,7 @@ public class MClickModel extends USMFrame{
 			}
 		}
 		
-		//context part
-		
+		//context part		
 		for(int j=0; j<IAccessor._marFeatureLength; j++){
 			g[IAccessor._releFeatureLength+j] = total_mar_parGradient[j];
 		}		
