@@ -143,16 +143,15 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 	 * **/
 	private void calFunctionGradient(double[] g){		
 		//rele part
-		double [] total_rele_parGradient = new double[IAccessor._releFeatureLength];
-		
+		double [] total_rele_parGradient = new double[IAccessor._releFeatureLength];		
 		for(int k=0; k<this._trainNum; k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			
-			double [] rele_parGradient = tQuery.calRelePartialGradient_NoMarginal();
-			
+			double [] rele_parGradient = tQuery.calRelePartialGradient_NoMarginal();			
 			for(double releF: rele_parGradient){
-				if(Double.isNaN(releF) || Double.isInfinite(releF)){
-					System.out.println("rele gradient error!");
+				if(Double.isNaN(releF)){
+					//!!!
+					System.out.println("NaN rele gradient error!");
 					System.out.println(releF);
 					System.exit(0);
 				}
@@ -222,19 +221,6 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		double releVal = Math.exp(dotProVal);
 		
 		tUrl.setReleVal(releVal);
-		
-		///*
-		if(Double.isNaN(releVal) || Double.isInfinite(releVal)){
-			System.out.println("calReleVals:\tdotProVal:"+dotProVal+"\t"+"mar:"+releVal);
-			//--					
-			for(int i=0; i<releFreatureVector.length; i++){
-				System.out.print(releParas[i]+" : "+releFreatureVector[i]+"\t");
-			}		
-			System.out.println();
-			//--
-			System.exit(0);
-		}
-		//*/
 		
 		return releVal;
 	}

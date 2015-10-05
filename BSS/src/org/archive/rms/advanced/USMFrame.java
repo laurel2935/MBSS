@@ -87,10 +87,6 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 			double logVal;
 			if(0 == satPro){
 				logVal = this._MIN;
-			}else if (Double.isNaN(satPro)) {
-				System.out.println("objective function satPro:\t"+satPro);		
-				logVal = Double.NaN;
-				System.exit(0);
 			}else{
 				logVal = Math.log(satPro);
 			}
@@ -154,17 +150,6 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 			}else{
 				gTruthBasedSatProList.add(Double.NaN);
 			}
-		}
-		
-		for(int k=1; k<=gTruthClickSeq.size(); k++){
-			if(gTruthClickSeq.get(k-1) && Double.isNaN(gTruthBasedSatProList.get(k-1))){
-				System.out.println(gTruthClickSeq);
-				System.out.println(tQuery._gTruthBasedMarValList);
-				System.out.println(gTruthBasedCumuValList);
-				System.out.println(gTruthBasedSatProList);
-				System.err.println("calGTruthBasedSatPros:\t"+k);
-				System.exit(0);
-			}			
 		}
 		
 		tQuery.setGTruthBasedSatPros(gTruthBasedSatProList);

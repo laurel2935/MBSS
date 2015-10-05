@@ -335,7 +335,7 @@ public class MClickModel extends USMFrame{
 			return false;
 		}
 		
-		//
+		////releVal w.r.t. firstC
 		for(TUrl tUrl: tQuery.getUrlList()){
 			if(tUrl.getGTruthClick() > 0){
 				calReleVal(tUrl);
@@ -357,59 +357,18 @@ public class MClickModel extends USMFrame{
 			marParas[i] = _rele_mar_weights[IAccessor._releFeatureLength+i];
 		}
 		
-		//url-specific context information
-		//tQuery.calContextInfor();
-		
 		for(int kRank=firstC+1; kRank<=gTruthClickSeq.size(); kRank++){
 			if(gTruthClickSeq.get(kRank-1)){
-				//without context information
-				//double [] marFeatureVector_part1 = tQuery.getMarFeature(kRank);
 				double [] marFeatureVector = tQuery.getMarFeature(kRank);
-
-				/*
-//				double [] marFeatureVector = new double [IAccessor._marFeatureLength];
-//				for(int i=0; i<marFeatureVector_part1.length; i++){
-//					marFeatureVector [i] = marFeatureVector_part1[i];
-//				}
-//				
-//				TUrl tUrl = tQuery.getUrlList().get(kRank-1);
-//				int st = marFeatureVector_part1.length;
-//				marFeatureVector [st] = tUrl.getRankPosition();
-//				marFeatureVector [st+1] = tUrl.getPriorClicks();
-//				marFeatureVector [st+2] = tUrl.getDisToLastClick();
-				*/
 				
 				double dotProVal = dotProduct(marFeatureVector, marParas);
 				double marVal = Math.exp(dotProVal);
 					
-				///*
-				if(Double.isNaN(marVal)){
-					System.out.println("calGTruthBasedMarVals:\t"+"rank:"+kRank+"\t"+dotProVal+"\t"+"mar:"+marVal);
-					//--					
-					for(int i=0; i<marFeatureVector.length; i++){
-						System.out.print(marParas[i]+" : "+marFeatureVector[i]+"\t");
-					}		
-					System.out.println();
-					//--
-					System.exit(0);
-				}
-				//*/
-				
-				
-				
 				gTruthBasedMarValList.add(marVal);
 			}else{
 				gTruthBasedMarValList.add(0.0);
 			}
 		}
-		
-		/*
-		System.out.println(gTruthClickSeq);
-		for(int i=0; i<gTruthBasedMarValList.size(); i++){
-			System.out.print(gTruthClickSeq.get(i)+":"+gTruthBasedMarValList.get(i)+"\t");
-		}		
-		System.out.println();
-		*/		
 		
 		tQuery.setGTruthBasedMarValues(gTruthBasedMarValList);
 		return true;
@@ -515,11 +474,6 @@ public class MClickModel extends USMFrame{
 		}
 		for(int i=0; i<marMean.length; i++){
 			marMean[i] /= count;
-			
-			if(Double.isNaN(marMean[i])){
-				System.err.println(marMean[i]);
-				System.exit(0);
-			}
 		}
 		
 		//std variance
