@@ -163,6 +163,20 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	//////////
 	//basic utilities
 	//////////
+	protected double [] combineDArray(double [] dArray_1, double [] dArray_2){
+		double [] allArray = new double [dArray_1.length+dArray_2.length];
+		
+		for(int i=0; i<dArray_1.length; i++){
+			allArray[i] = dArray_1[i];
+		}
+		
+		for(int j=0; j<dArray_2.length; j++){
+			allArray[dArray_1.length+j] = dArray_2[j];
+		}
+		
+		return allArray;		
+	}
+	
 	protected double dotProduct(double [] dVector_1, double [] dVector_2){
 		double sum = 0.0;
 		for(int i=0; i<dVector_1.length; i++){

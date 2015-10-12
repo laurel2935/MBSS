@@ -442,7 +442,7 @@ public class MAnalyzer {
 	}
 	
 	////w.r.t. features	
-	public void bufferReleFeature(ArrayList<SimQSession> simQSessionList){
+	public void bufferReleFeature(ArrayList<SimQSession> simQSessionList, TextCollection textCollection){
 		
 		String targetFile = FRoot._bufferDir+"RelevanceFeatureVectors"
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_ClickedUrl)
@@ -469,7 +469,7 @@ public class MAnalyzer {
 						keySet.add(key);
 						
 						rFeatureWriter.write(key);
-						RFeature rFeature = _iAccessor.getRFeature(false, _iAccessor.getDocStyle(), qText, docNo);
+						RFeature rFeature = _iAccessor.getRFeature(false, _iAccessor.getDocStyle(), qText, docNo, textCollection);
 						rFeatureWriter.write(rFeature.toVectorString()+NEWLINE);
 					}					
 				}
@@ -521,28 +521,14 @@ public class MAnalyzer {
 		return dList;
 	}
 	//part-2
-	public void bufferMarFeature(boolean check, ArrayList<SimQSession> simQSessionList){
+	public void bufferMarFeature(boolean check, ArrayList<SimQSession> simQSessionList, TextCollection textCollection){
 		
 		String targetFile = FRoot._bufferDir+"MarginalRelevanceFeatureVectors"
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_ClickedUrl)
 				+"_"+Integer.toString(this._threshold_UnavailableHtml_NonClickedUrl)
 				+"_"+Integer.toString(this._totalAcceptedSessions)+".txt";
 		
-		try {
-			HashSet<String> htmlUrlSet = new HashSet<>();			
-			for(SimQSession simSession: simQSessionList){
-				for(String url: simSession._urlList){
-					if(!htmlUrlSet.contains(url)){
-						htmlUrlSet.add(url);
-					}
-				}
-			}	
-			
-			System.out.println("Loading plain text ...");
-			HashMap<String, HtmlPlainText> docNo2HtmlPlainTextMap = DataAccessor.loadHtmlText(htmlUrlSet);
-			
-			TextCollection textCollection = DataAccessor.getTextCollection(docNo2HtmlPlainTextMap);
-			
+		try {			
 			HashMap<String, LDAKernel> ldaKernelMap = null;
 			HashMap<String, TFIDF_A1> tfidfKernelMap = null;
 			/*
@@ -646,15 +632,30 @@ public class MAnalyzer {
 	
 	public void bufferFeatureVectors(boolean check){
 		ArrayList<SimQSession> simQSessionList = loadAcceptedSessions();
+		
 		//for test
 		//SimQSession sQSession = simQSessionList.get(0);
 		//System.out.println(sQSession._docNoList);
 		
+		System.out.println("Loading plain text ...");
+		
+		HashSet<String> htmlUrlSet = new HashSet<>();			
+		for(SimQSession simSession: simQSessionList){
+			for(String url: simSession._urlList){
+				if(!htmlUrlSet.contains(url)){
+					htmlUrlSet.add(url);
+				}
+			}
+		}
+		
+		HashMap<String, HtmlPlainText> docNo2HtmlPlainTextMap = DataAccessor.loadHtmlText(htmlUrlSet);		
+		TextCollection textCollection = DataAccessor.getTextCollection(docNo2HtmlPlainTextMap);
+		
 		//buffer-1
-		bufferReleFeature(simQSessionList);
+		bufferReleFeature(simQSessionList, textCollection);
 		
 		//buffer-2
-		bufferMarFeature(check, simQSessionList);
+		bufferMarFeature(check, simQSessionList, textCollection);
 	}
 	
 	
@@ -679,14 +680,14 @@ public class MAnalyzer {
 		mAnalyzer.getSimplifiedQSessions(false);
 		*/
 		
-		//3 step-2
+		//3 step-2 application
 		// buffer rele and mar features
-		/*
+		///*
 		boolean fieldSpecificLDA = true;
 		boolean useLoadedModel = false;
 		MAnalyzer mAnalyzer = new MAnalyzer(true, fieldSpecificLDA, useLoadedModel);
 		mAnalyzer.bufferFeatureVectors(false);
-		*/
+		//*/
 		
 		//4 step-3
 		/*

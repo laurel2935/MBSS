@@ -55,7 +55,13 @@ public class MClickModel extends USMFrame{
 	//int _marFeatureLength;
 	//combined parameter vector corresponding to both utility and marginal utility
 	//i.e., _rele_mar_weights.length = _releFeatureLength + _marFeatureLength;
-	private double [] _rele_mar_weights;		
+	
+	/**
+	 * Consisting of two parts: (1) relevance w.r.t. q (2) marginal usefulness conditional on the previously clicked documents
+	 * 
+	 * ? use exponential function or not? need comparison to be done
+	 * **/
+	private double [] _mar_weights;		
 	
 //	//ArrayList<TUser> _userList;
 //	
@@ -132,13 +138,13 @@ public class MClickModel extends USMFrame{
 	
 	@Override
 	protected void iniWeightVector(){		
-		_rele_mar_weights =new double[IAccessor._releFeatureLength+IAccessor._marFeatureLength];
+		_mar_weights =new double[IAccessor._marFeatureLength];
 		
 		double weightScale = _defaultWeightScale;;
 		
 		Random rand = new Random();
-		for(int i=0; i<_rele_mar_weights.length; i++){
-			_rele_mar_weights [i] = (2*rand.nextDouble()-1)%weightScale;
+		for(int i=0; i<_mar_weights.length; i++){
+			_mar_weights [i] = (2*rand.nextDouble()-1)%weightScale;
 		}
 	}
 			
@@ -150,7 +156,7 @@ public class MClickModel extends USMFrame{
 		int[] iprint = {-1, 0}, iflag = {0};
 		
 		//gradient w.r.t. the function
-		double[] g = new double[_rele_mar_weights.length], diag = new double[_rele_mar_weights.length];
+		double[] g = new double[_mar_weights.length], diag = new double[_mar_weights.length];
 
 		int iter = 0;
 		//objVal
@@ -181,7 +187,7 @@ public class MClickModel extends USMFrame{
 			
 			try{
 				
-				_lbfgsOptimizer.lbfgs(_rele_mar_weights.length, 5, _rele_mar_weights, -f, g, false, diag, iprint, 1e-3, 1e-3, iflag);
+				_lbfgsOptimizer.lbfgs(_mar_weights.length, 5, _mar_weights, -f, g, false, diag, iprint, 1e-3, 1e-3, iflag);
 
 			} catch (ExceptionWithIflag ex){
 				System.err.println("[Warning]M-step cannot proceed!");
@@ -298,13 +304,14 @@ public class MClickModel extends USMFrame{
 	//
 	////////
 	/**
-	 * Exponential function based relevance function 
+	 * Exponential function based relevance function, without considering the effect of previously clicked documents
 	 * **/
 	@Override
 	protected double calReleVal(TUrl tUrl){
 		double [] releParas = new double [IAccessor._releFeatureLength];
+		
 		for(int i=0; i<IAccessor._releFeatureLength; i++){
-			releParas[i] = _rele_mar_weights[i];
+			releParas[i] = _mar_weights[i];
 		}
 	
 		double [] releFreatureVec = tUrl.getReleFeatures();
@@ -343,15 +350,22 @@ public class MClickModel extends USMFrame{
 		gTruthBasedMarValList.add(tQuery.getUrlList().get(firstC-1).getReleValue());
 		
 		double []marParas = new double [IAccessor._marFeatureLength];
+		
 		for(int i=0; i<IAccessor._marFeatureLength; i++){
-			marParas[i] = _rele_mar_weights[IAccessor._releFeatureLength+i];
+			marParas[i] = _mar_weights[i];
 		}
 		
 		for(int kRank=firstC+1; kRank<=gTruthClickSeq.size(); kRank++){
 			if(gTruthClickSeq.get(kRank-1)){
+				//part-1 relevance w.r.t. q
+				double [] releFreatureVec = tQuery.getUrlList().get(kRank-1).getReleFeatures();				
+				
+				//part-2 marginal attributes conditional on previously clicked documents
 				double [] marFeatureVector = tQuery.getMarFeature(kRank);
 				
-				double dotProVal = dotProduct(marFeatureVector, marParas);
+				double [] allFeature = combineDArray(releFreatureVec, marFeatureVector);
+				
+				double dotProVal = dotProduct(allFeature, marParas);
 				double marVal = Math.exp(dotProVal);
 					
 				gTruthBasedMarValList.add(marVal);
@@ -383,7 +397,7 @@ public class MClickModel extends USMFrame{
 	//
 	protected void outputParas(){
 		System.out.print("Paras::: ");
-		for(double w: _rele_mar_weights){
+		for(double w: _mar_weights){
 			System.out.print(w+"\t");
 		}
 		System.out.println();
