@@ -1,15 +1,18 @@
 package org.archive.rms.advanced;
 
+import java.io.BufferedWriter;
 import java.util.ArrayList;
 import java.util.Random;
 
 import optimizer.LBFGS;
 import optimizer.LBFGS.ExceptionWithIflag;
 
+import org.archive.access.feature.FRoot;
 import org.archive.access.feature.IAccessor;
 import org.archive.rms.clickmodels.T_Evaluation;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
+import org.archive.util.io.IOText;
 
 import cc.mallet.types.MatrixOps;
 
@@ -20,6 +23,7 @@ import cc.mallet.types.MatrixOps;
 
 public class EX_USM extends USMFrame implements T_Evaluation{
 	
+	private static int  _releLength = IAccessor._releFeatureLength;
 	private double [] _rele_context_weights;
 	
 	//optimizer
@@ -42,7 +46,7 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		//normalizeFeatures();
 		
 		//2
-		iniWeightVector();		
+		iniWeightVector(true);		
 	}
 	
 	protected void iniFeatures(){
@@ -79,16 +83,24 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 	}
 	
 	@Override
-	protected void iniWeightVector(){
+	protected void iniWeightVector(boolean useCurrentOptimal){
 		
-		_rele_context_weights =new double[IAccessor._releFeatureLength];
+		_rele_context_weights =new double[_releLength];
 		
-		double weightScale = _defaultWeightScale;
-		
-		Random rand = new Random();
-		for(int i=0; i<_rele_context_weights.length; i++){
-			_rele_context_weights [i] = (2*rand.nextDouble()-1)/weightScale;
-		}
+		if(useCurrentOptimal){
+			double [] currentOptParas = loadCurrentOptimalParas();
+			
+			for(int i=0; i<currentOptParas.length; i++){
+				_rele_context_weights[i] = currentOptParas[i];
+			}
+		}else{
+			double weightScale = _defaultWeightScale;
+			
+			Random rand = new Random();
+			for(int i=0; i<_rele_context_weights.length; i++){
+				_rele_context_weights [i] = (2*rand.nextDouble()-1)/weightScale;
+			}
+		}		
 	}
 	
 	protected void optimize(int maxIter) throws ExceptionWithIflag{
@@ -138,7 +150,7 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 	 * **/
 	private void calFunctionGradient(double[] g){		
 		//rele part
-		double [] total_rele_parGradient = new double[IAccessor._releFeatureLength];		
+		double [] total_rele_parGradient = new double[_releLength];		
 		for(int k=0; k<this._trainNum; k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			
@@ -152,12 +164,12 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 				}
 			}			
 			
-			for(int i=0; i<IAccessor._releFeatureLength; i++){
+			for(int i=0; i<_releLength; i++){
 				total_rele_parGradient[i] += rele_parGradient[i];
 			}
 		}		
 		
-		for(int i=0; i<IAccessor._releFeatureLength; i++){
+		for(int i=0; i<_releLength; i++){
 			g[i] = total_rele_parGradient[i];			
 		}	
 	}
@@ -182,9 +194,16 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 		
 		double corpusLikelihood = 0.0;
 		
+		double [] testArray = getTestArray();
+		
+		int count = 0;
 		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			double sessionPro = tQuery.getQSessionPro();
+			
+			if(Double.isNaN(sessionPro)){
+				count++;
+			}
 			
 			double logVal;
 			if(0 == sessionPro){
@@ -193,8 +212,23 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 				logVal = Math.log(sessionPro);
 			}
 			
+			testArray[tQuery.getClickCount()-2] += logVal;
+			
 			corpusLikelihood += logVal;
 		}
+		
+		updateOptimalParas(true, corpusLikelihood);
+		
+		outputTestArray(testArray);
+		
+		System.out.println(count+" of "+_testNum);
+		System.out.println(("Direct Product:\t"
+					+_testNum+"*"+USMFrame._MIN
+					+"="+_testNum*USMFrame._MIN));
+		System.out.println(("Comparison w.r.t. avgSessionPro{0.1} :\t"
+				+_testNum+"*"+Math.log(0.1)
+				+"="+_testNum*Math.log(0.1)));
+		
 		//the higher the better
 		return corpusLikelihood;	
 	}
@@ -206,8 +240,8 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 	 * **/
 	@Override
 	protected double calReleVal(TUrl tUrl){
-		double [] releParas = new double [IAccessor._releFeatureLength];
-		for(int i=0; i<IAccessor._releFeatureLength; i++){
+		double [] releParas = new double [_releLength];
+		for(int i=0; i<_releLength; i++){
 			releParas[i] = _rele_context_weights[i];
 		}
 		
@@ -253,6 +287,63 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 			System.out.print(w+"\t");
 		}
 		System.out.println();
+	}
+	
+	protected void bufferParas(){
+		String targetFile = FRoot._bufferParaDir+"Parameter_OnlyRele.txt";
+		try {
+			BufferedWriter writer = IOText.getBufferedWriter_UTF8(targetFile);
+			
+			for(double w: _rele_context_weights){
+				writer.write(w+"\t");
+				writer.newLine();
+			}
+			
+			writer.flush();
+			writer.close();			
+		} catch (Exception e) {
+			// TODO: handle exception
+			e.printStackTrace();
+		}		
+	}
+	
+	protected void updateOptimalParas(boolean updateOptimalParas, double value){
+		String optimalParaFile = FRoot._bufferParaDir+"Parameter_OnlyRele_Optimal.txt";
+		ArrayList<String> lineList = IOText.getLinesAsAList_UTF8(optimalParaFile);
+		
+		double oldOptimalVale = Double.parseDouble(lineList.get(0));
+		
+		if(value > oldOptimalVale){
+			try {
+				BufferedWriter writer = IOText.getBufferedWriter_UTF8(optimalParaFile);
+				
+				writer.write(Double.toString(value));
+				writer.newLine();
+				
+				for(double w: _rele_context_weights){
+					writer.write(Double.toString(w));
+					writer.newLine();
+				}
+				
+				writer.flush();
+				writer.close();			
+			} catch (Exception e) {
+				// TODO: handle exception
+				e.printStackTrace();
+			}	
+		}		
+	}
+	
+	protected double [] loadCurrentOptimalParas(){
+		String optimalParaFile = FRoot._bufferParaDir+"Parameter_OnlyRele_Optimal.txt";
+		ArrayList<String> lineList = IOText.getLinesAsAList_UTF8(optimalParaFile);
+		
+		double [] currentOptParas = new double [lineList.size()-1];
+		for(int i=0; i<currentOptParas.length; i++){
+			currentOptParas[i] = Double.parseDouble(lineList.get(i+1));
+		}
+		
+		return currentOptParas;
 	}
 		
 	protected void getReleFeatureMeanStdVariance(double[] mean, double[] stdVar){
@@ -308,7 +399,7 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 	}
 	
 	protected void normalizeFeatures(){
-		double[] mean = new double [IAccessor._releFeatureLength];
+		double[] mean = new double [_releLength];
 		double[] stdVar = new double [mean.length];
 		
 		getReleFeatureMeanStdVariance(mean, stdVar);
@@ -326,7 +417,7 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 	///////
 	public static void main(String []args){
 		//1
-		EX_USM ex_USM = new EX_USM(0.75);
+		EX_USM ex_USM = new EX_USM(0.25);
 		ex_USM.train();
 		//0-15
 		//before normalizing features; -5092.389142761225

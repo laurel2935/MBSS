@@ -91,17 +91,31 @@ public class MAnalyzer {
 		//search log
 		LoadLog();
 				
-		this._testNum = (int)(this._QSessionList.size()*testRatio);
-		this._trainNum = this._QSessionList.size()-this._testNum;
-				
 		//features
 		if(useFeature){
 			loadFeatureVectors();
-		}		
+		}	
+		
+		filter(8);
+		
+		this._testNum = (int)(this._QSessionList.size()*testRatio);
+		this._trainNum = this._QSessionList.size()-this._testNum;
 	}
 	//////////
 	//Necessary for click-model training & testing
 	//////////
+	public void filter(int atMostClicks){
+		ArrayList<TQuery> QSessionList = new ArrayList<>();
+		
+		for(TQuery tQuery: this._QSessionList){
+			if(tQuery.getClickCount() <= atMostClicks){
+				QSessionList.add(tQuery);
+			}
+		}
+		
+		this._QSessionList = QSessionList;
+	}
+	
 	public void loadFeatureVectors(){
 		key2ReleFeatureMap = loadRFeatureVectors();
 		key2MarFeatureMap = loadMarFeatureVectors();
@@ -375,7 +389,8 @@ public class MAnalyzer {
 		}
 		
 		if((numUnava_NonClickedUrl<=this._threshold_UnavailableHtml_NonClickedUrl) 
-				&& (numUnava_ClickedUrl<=this._threshold_UnavailableHtml_ClickedUrl)){
+				&& (numUnava_ClickedUrl<=this._threshold_UnavailableHtml_ClickedUrl)
+				){
 			//adjust if needed
 			if(adjust && (numUnava_NonClickedUrl>0 || numUnava_ClickedUrl>0)){
 				adjustSession(tQuery);

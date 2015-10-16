@@ -1,12 +1,15 @@
 package org.archive.rms.advanced;
 
+import java.io.BufferedWriter;
 import java.util.ArrayList;
 import java.util.Random;
 
+import org.archive.access.feature.FRoot;
 import org.archive.access.feature.IAccessor;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TQuery.MarStyle;
 import org.archive.rms.data.TUrl;
+import org.archive.util.io.IOText;
 
 import cc.mallet.types.MatrixOps;
 import optimizer.LBFGS;
@@ -41,6 +44,8 @@ public class MClickModel extends USMFrame{
 	
 	
 	public static MarStyle _defaultMarStyle = MarStyle.MIN;
+	
+	private static final FunctionType _funType = FunctionType.EXP;
 		
 	//weight vector
 	//w.r.t. utility
@@ -56,12 +61,19 @@ public class MClickModel extends USMFrame{
 	//combined parameter vector corresponding to both utility and marginal utility
 	//i.e., _rele_mar_weights.length = _releFeatureLength + _marFeatureLength;
 	
+	//? use exponential function or not? need comparison to be done
+	 
 	/**
-	 * Consisting of two parts: (1) relevance w.r.t. q (2) marginal usefulness conditional on the previously clicked documents
-	 * 
-	 * ? use exponential function or not? need comparison to be done
-	 * **/
-	private double [] _mar_weights;		
+	 * version-1
+	 * differentiating the first clicked document 	{the feature vector for computing utility are the relevance features}
+	 * and subsequent clicked documents 			{the feature vector for computing marginal utility are the relevance features plus marginal features}
+	 * **/ 
+	//the part of {IAccessor._releFeatureLength}							 	for the first clicked document
+	//the part of {IAccessor._releFeatureLength +IAccessor.marFeatureLength}	for subsequent clicked documents
+	private static int version_1_releLength = IAccessor._releFeatureLength;
+	public static int  version_1_marLength = IAccessor._releFeatureLength +IAccessor.marFeatureLength;
+	private static int  version_1_featureLength =  version_1_releLength +  version_1_marLength;
+	private double [] mar_weights;		
 	
 //	//ArrayList<TUser> _userList;
 //	
@@ -87,10 +99,11 @@ public class MClickModel extends USMFrame{
 		normalizeFeatures();
 
 		////3
-		iniWeightVector();		
+		iniWeightVector(true);
+		//iniWeightVector(false);	
 	}
 	
-	protected  void iniFeatures(){
+	protected void iniFeatures(){
 		
 		for(TQuery tQuery: this._QSessionList){			
 			//context information
@@ -137,15 +150,23 @@ public class MClickModel extends USMFrame{
 	}
 	
 	@Override
-	protected void iniWeightVector(){		
-		_mar_weights =new double[IAccessor._marFeatureLength];
+	protected void iniWeightVector(boolean useCurrentOptimal){		
+		mar_weights =new double[version_1_featureLength];
 		
-		double weightScale = _defaultWeightScale;;
-		
-		Random rand = new Random();
-		for(int i=0; i<_mar_weights.length; i++){
-			_mar_weights [i] = (2*rand.nextDouble()-1)%weightScale;
-		}
+		if(useCurrentOptimal){
+			double [] currentOptParas = loadCurrentOptimalParas();
+			
+			for(int i=0; i<currentOptParas.length; i++){
+				mar_weights[i] = currentOptParas[i];
+			}
+			
+		}else{
+			double weightScale = _defaultWeightScale;		
+			Random rand = new Random();
+			for(int i=0; i<mar_weights.length; i++){
+				mar_weights [i] = (2*rand.nextDouble()-1)%weightScale;
+			}
+		}		
 	}
 			
 	@Override
@@ -156,7 +177,7 @@ public class MClickModel extends USMFrame{
 		int[] iprint = {-1, 0}, iflag = {0};
 		
 		//gradient w.r.t. the function
-		double[] g = new double[_mar_weights.length], diag = new double[_mar_weights.length];
+		double[] g = new double[mar_weights.length], diag = new double[mar_weights.length];
 
 		int iter = 0;
 		//objVal
@@ -187,7 +208,7 @@ public class MClickModel extends USMFrame{
 			
 			try{
 				
-				_lbfgsOptimizer.lbfgs(_mar_weights.length, 5, _mar_weights, -f, g, false, diag, iprint, 1e-3, 1e-3, iflag);
+				_lbfgsOptimizer.lbfgs(mar_weights.length, 5, mar_weights, -f, g, false, diag, iprint, 1e-3, 1e-3, iflag);
 
 			} catch (ExceptionWithIflag ex){
 				System.err.println("[Warning]M-step cannot proceed!");
@@ -204,12 +225,12 @@ public class MClickModel extends USMFrame{
 	 * **/
 	private void calFunctionGradient(double[] g){		
 		////rele part
-		double [] total_rele_parGradient = new double[IAccessor._releFeatureLength];		
+		double [] total_rele_parGradient = new double[version_1_releLength];		
 		for(int k=0; k<this._trainNum; k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			
-			double [] rele_parGradient = tQuery.calRelePartialGradient();
-			for(int i=0; i<IAccessor._releFeatureLength; i++){
+			double [] rele_parGradient = tQuery.calRelePartialGradient(_funType);
+			for(int i=0; i<version_1_releLength; i++){
 				//!!!
 				if(Double.isNaN(rele_parGradient[i])){
 					System.out.println("NaN rele gradient:\t");
@@ -220,17 +241,17 @@ public class MClickModel extends USMFrame{
 			}
 		}		
 		
-		for(int i=0; i<IAccessor._releFeatureLength; i++){
+		for(int i=0; i<version_1_releLength; i++){
 			g[i] = total_rele_parGradient[i];
 		}
 		
 		////mar part
-		double [] total_mar_parGradient = new double[IAccessor._marFeatureLength];		
+		double [] total_mar_parGradient = new double[version_1_marLength];		
 		for(int k=0; k<this._trainNum; k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			
-			double [] mar_parGradient = tQuery.calMarPartialGradient();			
-			for(int j=0; j<IAccessor._marFeatureLength; j++){
+			double [] mar_parGradient = tQuery.calMarPartialGradient(_funType);			
+			for(int j=0; j<version_1_marLength; j++){
 				//!!!
 				if(Double.isNaN(mar_parGradient[j])){
 					System.out.println("NaN  mar gradient:\t");
@@ -240,10 +261,9 @@ public class MClickModel extends USMFrame{
 				total_mar_parGradient[j] += mar_parGradient[j];
 			}
 		}
-		
-		////context part		
-		for(int j=0; j<IAccessor._marFeatureLength; j++){
-			g[IAccessor._releFeatureLength+j] = total_mar_parGradient[j];
+				
+		for(int j=0; j<version_1_marLength; j++){
+			g[version_1_releLength+j] = total_mar_parGradient[j];
 		}		
 	}
 
@@ -270,6 +290,8 @@ public class MClickModel extends USMFrame{
 		
 		double corpusLikelihood = 0.0;
 		
+		double [] testArray = getTestArray();
+		
 		int count = 0;
 		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
 			TQuery tQuery = this._QSessionList.get(k);
@@ -286,8 +308,13 @@ public class MClickModel extends USMFrame{
 				logVal = Math.log(sessionPro);
 			}
 			
+			testArray[tQuery.getClickCount()-2] += logVal;
+			
 			corpusLikelihood += logVal;
 		}
+		
+		//
+		updateOptimalParas(true, corpusLikelihood);
 		
 		System.out.println(count+" of "+_testNum);
 		System.out.println(("Direct Product:\t"
@@ -297,9 +324,45 @@ public class MClickModel extends USMFrame{
 				+_testNum+"*"+Math.log(0.1)
 				+"="+_testNum*Math.log(0.1)));
 		
+		outputTestArray(testArray);
+		
 		//the higher the better
 		return corpusLikelihood;	
 	}
+	
+	public void train(int searchK){
+		
+		double minObj = Double.MIN_VALUE;
+		
+		for(int k=0; k<searchK; k++){
+			ini();
+			
+			int defaultMaxItr = 100;
+			
+			//System.out.println("Parameters Before Optimizing:");
+			//outputParas();
+			
+			try {
+				
+				optimize(defaultMaxItr);
+
+			} catch (Exception e) {
+				// TODO: handle exception
+				e.printStackTrace();
+			}
+			
+			//System.out.println("Parameters After Optimizing:");
+			//outputParas();
+			
+			double obj = calObjFunctionValue();
+			if(obj > minObj){
+				minObj = obj;
+				bufferParas();
+			}			
+		}		
+	}
+	
+	
 	////////
 	//
 	////////
@@ -308,19 +371,21 @@ public class MClickModel extends USMFrame{
 	 * **/
 	@Override
 	protected double calReleVal(TUrl tUrl){
-		double [] releParas = new double [IAccessor._releFeatureLength];
+		double [] releParas = new double [version_1_releLength];
 		
-		for(int i=0; i<IAccessor._releFeatureLength; i++){
-			releParas[i] = _mar_weights[i];
+		for(int i=0; i<version_1_releLength; i++){
+			releParas[i] = mar_weights[i];
 		}
 	
-		double [] releFreatureVec = tUrl.getReleFeatures();
+		double [] releFeatureVec = tUrl.getReleFeatures();
 		
-		double dotProVal = dotProduct(releFreatureVec, releParas);
-		double releVal = Math.exp(dotProVal);
+		//double dotProVal = dotProduct(releFeatureVec, releParas);
+		//double releVal = Math.exp(dotProVal);
 		
-		tUrl.setReleVal(releVal);		
-		return releVal;
+		double val = calFunctionVal(releFeatureVec, releParas, _funType);
+		
+		tUrl.setReleVal(val);		
+		return val;
 	}
 	/**
 	 * true: success w.r.t. QSessions including at least one click
@@ -349,24 +414,20 @@ public class MClickModel extends USMFrame{
 		//firstC utility=marginal utility
 		gTruthBasedMarValList.add(tQuery.getUrlList().get(firstC-1).getReleValue());
 		
-		double []marParas = new double [IAccessor._marFeatureLength];
+		double []marParas = new double [version_1_marLength];
 		
-		for(int i=0; i<IAccessor._marFeatureLength; i++){
-			marParas[i] = _mar_weights[i];
+		for(int i=0; i<version_1_marLength; i++){
+			marParas[i] = mar_weights[version_1_releLength+i];
 		}
 		
 		for(int kRank=firstC+1; kRank<=gTruthClickSeq.size(); kRank++){
-			if(gTruthClickSeq.get(kRank-1)){
-				//part-1 relevance w.r.t. q
-				double [] releFreatureVec = tQuery.getUrlList().get(kRank-1).getReleFeatures();				
+			if(gTruthClickSeq.get(kRank-1)){				
+				double [] allFeature = tQuery.getMarFeature(kRank);
+								
+				//double dotProVal = dotProduct(allFeature, marParas);
+				//double marVal = Math.exp(dotProVal);
 				
-				//part-2 marginal attributes conditional on previously clicked documents
-				double [] marFeatureVector = tQuery.getMarFeature(kRank);
-				
-				double [] allFeature = combineDArray(releFreatureVec, marFeatureVector);
-				
-				double dotProVal = dotProduct(allFeature, marParas);
-				double marVal = Math.exp(dotProVal);
+				double marVal = calFunctionVal(allFeature, marParas, _funType);
 					
 				gTruthBasedMarValList.add(marVal);
 			}else{
@@ -397,10 +458,66 @@ public class MClickModel extends USMFrame{
 	//
 	protected void outputParas(){
 		System.out.print("Paras::: ");
-		for(double w: _mar_weights){
+		for(double w: mar_weights){
 			System.out.print(w+"\t");
 		}
 		System.out.println();
+	}
+	
+	protected void bufferParas(){
+		String targetFile = FRoot._bufferParaDir+"Parameter_Mar.txt";
+		try {
+			BufferedWriter writer = IOText.getBufferedWriter_UTF8(targetFile);
+			
+			for(double w: mar_weights){
+				writer.write(Double.toString(w));
+				writer.newLine();
+			}
+			
+			writer.flush();
+			writer.close();			
+		} catch (Exception e) {
+			// TODO: handle exception
+			e.printStackTrace();
+		}		
+	}
+	protected double [] loadCurrentOptimalParas(){
+		String optimalParaFile = FRoot._bufferParaDir+"Parameter_Mar_Optimal.txt";
+		ArrayList<String> lineList = IOText.getLinesAsAList_UTF8(optimalParaFile);
+		
+		double [] currentOptParas = new double [lineList.size()-1];
+		for(int i=0; i<currentOptParas.length; i++){
+			currentOptParas[i] = Double.parseDouble(lineList.get(i+1));
+		}
+		
+		return currentOptParas;
+	}
+	
+	protected void updateOptimalParas(boolean updateOptimalParas, double value){
+		String optimalParaFile = FRoot._bufferParaDir+"Parameter_Mar_Optimal.txt";
+		ArrayList<String> lineList = IOText.getLinesAsAList_UTF8(optimalParaFile);
+		
+		double oldOptimalVale = Double.parseDouble(lineList.get(0));
+		
+		if(value > oldOptimalVale){
+			try {
+				BufferedWriter writer = IOText.getBufferedWriter_UTF8(optimalParaFile);
+				
+				writer.write(Double.toString(value));
+				writer.newLine();
+				
+				for(double w: mar_weights){
+					writer.write(Double.toString(w));
+					writer.newLine();
+				}
+				
+				writer.flush();
+				writer.close();			
+			} catch (Exception e) {
+				// TODO: handle exception
+				e.printStackTrace();
+			}	
+		}		
 	}
 	
 	protected void getReleFeatureMeanStdVariance(double[] mean, double[] stdVar){
@@ -500,7 +617,7 @@ public class MClickModel extends USMFrame{
 	
 	protected void normalizeFeatures(){
 		//rele part
-		double[] releMean = new double [IAccessor._releFeatureLength];
+		double[] releMean = new double [version_1_releLength];
 		double[] releStdVar = new double [releMean.length];
 		
 		getReleFeatureMeanStdVariance(releMean, releStdVar);
@@ -512,7 +629,7 @@ public class MClickModel extends USMFrame{
 		}
 		
 		//mar part
-		double[] marMean = new double [IAccessor._marFeatureLength];
+		double[] marMean = new double [version_1_marLength];
 		double[] marStdVar = new double [marMean.length];
 		
 		getMarFeatureMeanStdVariance(marMean, marStdVar);

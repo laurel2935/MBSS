@@ -25,6 +25,9 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	public static final double _MIN_Pro = 0.00001;
 	public static final double _MAX_Pro = 1-_MIN_Pro;	
 	
+	//
+	public enum FunctionType {EXP, LINEAR};
+	
 	//optimizer
 	protected LBFGS _lbfgsOptimizer;
 	
@@ -54,7 +57,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	 * **/
 	protected abstract void ini();
 	protected abstract void iniFeatures();
-	protected abstract void iniWeightVector();
+	protected abstract void iniWeightVector(boolean useCurrentOptimal);
 	
 	protected abstract void optimize(int maxIter) throws ExceptionWithIflag;
 	
@@ -103,7 +106,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	public void train(){
 		ini();
 		
-		int defaultMaxItr = 50;
+		int defaultMaxItr = 100;
 		
 		//System.out.println("Parameters Before Optimizing:");
 		//outputParas();
@@ -119,7 +122,11 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 		
 		//System.out.println("Parameters After Optimizing:");
 		//outputParas();
+		
+		bufferParas();
 	}	
+	
+	
 	
 	public double getClickProb(TQuery tQuery, TUrl tUrl){
 		return Double.NaN;
@@ -160,10 +167,54 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 		calGTruthBasedSatPros(tQuery);
 	}
 	
+	
+	protected int [] ClickTypeCountArray;
+	
+	protected double [] getTestArray() {
+		int maxClickCount = 0;
+		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);
+			int cCount = tQuery.getClickCount();
+			
+			if(cCount > maxClickCount){
+				maxClickCount = cCount;
+			}
+		}
+		
+		double [] testArray = new double [maxClickCount-1];
+		
+		ClickTypeCountArray = new int[maxClickCount-1];
+		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);
+			int cCount = tQuery.getClickCount();
+			
+			ClickTypeCountArray[cCount-2] += 1;			
+		}
+		
+		return testArray;
+	}
+	
+	protected double calFunctionVal(double [] featureVec, double [] weightVec, FunctionType fType) {
+		if(fType.equals(FunctionType.EXP)){
+			double dotProVal = dotProduct(featureVec, weightVec);
+			double val = Math.exp(dotProVal);
+			
+			return val;
+		}else if(fType.equals(FunctionType.LINEAR)){
+			double dotProVal = dotProduct(featureVec, weightVec);
+			
+			return dotProVal;
+		}else{
+			System.out.println("Unaccepted FunctionType Error!");
+			System.exit(0);
+			return Double.NaN;
+		}
+	}
+	
 	//////////
 	//basic utilities
 	//////////
-	protected double [] combineDArray(double [] dArray_1, double [] dArray_2){
+	public static double [] combineArray(double [] dArray_1, double [] dArray_2){
 		double [] allArray = new double [dArray_1.length+dArray_2.length];
 		
 		for(int i=0; i<dArray_1.length; i++){
@@ -190,6 +241,14 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	}
 	//
 	protected abstract void outputParas();
+	protected abstract void bufferParas();
+	protected abstract void updateOptimalParas(boolean updateOptimalParas, double value);
+	protected abstract double [] loadCurrentOptimalParas();
+	protected void outputTestArray(double [] testArray) {
+		for(int i=0; i<testArray.length; i++){
+			System.out.println("Click-"+(i+2)+"("+ClickTypeCountArray[i]+"):\t"+testArray[i]);
+		}
+	}
 	////////
 	//Feature pre-process
 	////////
