@@ -71,7 +71,7 @@ public class MClickModel extends USMFrame{
 	//the part of {IAccessor._releFeatureLength}							 	for the first clicked document
 	//the part of {IAccessor._releFeatureLength +IAccessor.marFeatureLength}	for subsequent clicked documents
 	private static int version_1_releLength = IAccessor._releFeatureLength;
-	public static int  version_1_marLength = IAccessor._releFeatureLength +IAccessor.marFeatureLength;
+	public static int  version_1_marLength = IAccessor._releFeatureLength +IAccessor._marFeatureLength+3;
 	private static int  version_1_featureLength =  version_1_releLength +  version_1_marLength;
 	private double [] mar_weights;		
 	
@@ -81,8 +81,8 @@ public class MClickModel extends USMFrame{
 //		this._userList = userList;
 //	}
 	
-	MClickModel(double testRatio){
-		super(testRatio);
+	MClickModel(double testRatio, int maxQSessionSize, int minQFre){
+		super(testRatio, maxQSessionSize, minQFre);
 	}
 	//////////
 	//Part: Optimization
@@ -107,35 +107,9 @@ public class MClickModel extends USMFrame{
 		
 		for(TQuery tQuery: this._QSessionList){			
 			//context information
-			tQuery.calContextInfor();			
+			tQuery.calContextInfor();	
 			
-			for(TUrl tUrl: tQuery.getUrlList()){
-				String urlKey = tUrl.getDocNo()+":"+tQuery.getQueryText();
-				
-				ArrayList<Double> releFeatureList = new ArrayList<>();
-				
-				////former part
-				ArrayList<Double> partialReleFeatures = key2ReleFeatureMap.get(urlKey);
-				for(Double parF: partialReleFeatures){
-					releFeatureList.add(parF);
-				}
-				
-				////later part
-				//context information
-				//1 rankPosition
-				int ctxt_RPos = tUrl.getRankPosition();
-				releFeatureList.add((double)ctxt_RPos);
-				//2 number of prior clicks
-				int ctxt_PriorClicks = tUrl.getPriorClicks();
-				releFeatureList.add((double)ctxt_PriorClicks);
-				//3 distance to prior click
-				double ctxt_DisToLastClick = tUrl.getDisToLastClick();
-				releFeatureList.add(ctxt_DisToLastClick);
-				
-				double []releFeatureVec = toDArray(releFeatureList);
-				
-				tUrl.setReleFeatureVector(releFeatureVec);
-			}				
+			tQuery.calReleFeature(key2ReleFeatureMap, true);				
 		}
 		
 		for(int i=0; i<this._QSessionList.size(); i++){
@@ -145,7 +119,7 @@ public class MClickModel extends USMFrame{
 			tQuery.setMarTensor(key2MarFeatureMap.get(qKey));
 			
 			//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently						
-			tQuery.calMarFeatureList();			
+			tQuery.calMarFeatureList(false, true);			
 		}
 	}
 	
@@ -268,7 +242,7 @@ public class MClickModel extends USMFrame{
 	}
 
 	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
-		tQuery.calMarFeatureList();
+		tQuery.calMarFeatureList(false, true);
 		
 		tQuery.calQSessionPro();
 		
@@ -422,7 +396,7 @@ public class MClickModel extends USMFrame{
 		
 		for(int kRank=firstC+1; kRank<=gTruthClickSeq.size(); kRank++){
 			if(gTruthClickSeq.get(kRank-1)){				
-				double [] allFeature = tQuery.getMarFeature(kRank);
+				double [] allFeature = tQuery.getMarFeature_Join(kRank);
 								
 				//double dotProVal = dotProduct(allFeature, marParas);
 				//double marVal = Math.exp(dotProVal);
@@ -580,7 +554,7 @@ public class MClickModel extends USMFrame{
 			for(int rank=firstC+1; rank<=tQuery.getUrlList().size(); rank++){
 				TUrl tUrl = tQuery.getUrlList().get(rank-1);
 				if(tUrl.getGTruthClick() > 0){
-					marFeatureVec = tQuery.getMarFeature(rank);
+					marFeatureVec = tQuery.getMarFeature_Join(rank);
 					
 					for(int i=0; i<marFeatureVec.length; i++){
 						value = marFeatureVec[i];
@@ -601,7 +575,7 @@ public class MClickModel extends USMFrame{
 			for(int rank=firstC+1; rank<=tQuery.getUrlList().size(); rank++){
 				TUrl tUrl = tQuery.getUrlList().get(rank-1);
 				if(tUrl.getGTruthClick() > 0){
-					marFeatureVec = tQuery.getMarFeature(rank);
+					marFeatureVec = tQuery.getMarFeature_Join(rank);
 					
 					for(int i=0; i<marFeatureVec.length; i++){
 						value = marFeatureVec[i];
@@ -644,7 +618,9 @@ public class MClickModel extends USMFrame{
 	///////
 	public static void main(String []args){
 		//1
-		MClickModel mClickModel = new MClickModel(0.25);
+		int maxQSessionSize = 15;
+		int minQFre = 1;
+		MClickModel mClickModel = new MClickModel(0.25, maxQSessionSize, minQFre);
 		mClickModel.train();
 		//0-7
 		//before normalizing -5092.38721036584

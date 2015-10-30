@@ -1,6 +1,8 @@
 package org.archive.rms.data;
 
 import org.archive.access.feature.IAccessor;
+import org.archive.rms.advanced.USMFrame;
+import org.archive.rms.advanced.USMFrame.FunctionType;
 
 public class TUrl {
 	
@@ -21,6 +23,13 @@ public class TUrl {
 	
 	double [] _rFeatureVector;
 	double _releValue;
+	
+	
+	////
+	//the likelihood of being relevant
+	double _relePro;
+	//the likelihood of being marginally relevant
+	double _marRelePro;
 	
 	TUrl(String urlStr, int rankPosition, int gTruthClick, boolean htmlAvailable){
 		this._urlStr = urlStr;
@@ -50,7 +59,15 @@ public class TUrl {
 	public double getReleValue(){
 		return this._releValue;
 	}
+	
+	public double calRelePro(double [] rele_weights){
+		double releVal = USMFrame.calFunctionVal(_rFeatureVector, rele_weights, FunctionType.LINEAR);
+		double relePro = USMFrame.logistic(releVal);
 		
+		this._relePro = relePro;
+		return this._relePro;
+	}
+	
 	public int getRankPosition(){
 		return this._rankPostion;
 	}
@@ -86,6 +103,16 @@ public class TUrl {
 		for(int i=3; i<_rFeatureVector.length; i++){
 			if(0 != stdVar[i]){
 				_rFeatureVector[i] = (_rFeatureVector[i]-mean[i])/stdVar[i];
+			}else{
+				_rFeatureVector[i] = 0d;
+			}
+		}
+	}
+	
+	public void releNormalize(double[] maxFeatureVec){				
+		for(int i=0; i<_rFeatureVector.length; i++){
+			if(0 != maxFeatureVec[i]){
+				_rFeatureVector[i] = _rFeatureVector[i]/maxFeatureVec[i];
 			}else{
 				_rFeatureVector[i] = 0d;
 			}

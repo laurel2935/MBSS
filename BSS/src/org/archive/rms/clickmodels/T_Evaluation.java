@@ -6,6 +6,8 @@ import org.archive.rms.data.TUrl;
 //
 
 public interface T_Evaluation {
+	public enum Mode {Original, NaiveRele, MarginalRele};
+	
 	//public void initialize();
 	
 	//public void doPredicton(TQuery tQuery);

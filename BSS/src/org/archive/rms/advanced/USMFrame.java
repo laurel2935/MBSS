@@ -39,8 +39,8 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	
 	//ArrayList<TQuery> _QSessionList;
 	
-	USMFrame(double testRatio){
-		super(testRatio, true);
+	USMFrame(double testRatio, int maxQSessionSize, int minQFre){
+		super(minQFre, testRatio, true, maxQSessionSize);
 		//this._testRatio = testRatio;
 		//this._QSessionList = QSessionList;
 		
@@ -194,7 +194,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 		return testArray;
 	}
 	
-	protected double calFunctionVal(double [] featureVec, double [] weightVec, FunctionType fType) {
+	public static double calFunctionVal(double [] featureVec, double [] weightVec, FunctionType fType) {
 		if(fType.equals(FunctionType.EXP)){
 			double dotProVal = dotProduct(featureVec, weightVec);
 			double val = Math.exp(dotProVal);
@@ -228,7 +228,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 		return allArray;		
 	}
 	
-	protected double dotProduct(double [] dVector_1, double [] dVector_2){
+	protected static double dotProduct(double [] dVector_1, double [] dVector_2){
 		double sum = 0.0;
 		for(int i=0; i<dVector_1.length; i++){
 			sum += dVector_1[i]*dVector_2[i];
@@ -236,7 +236,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 		return sum;
 	}
 	//
-	protected static double logistic(double a){
+	public static double logistic(double a){
 		return 1.0 / (1.0+Math.exp(-a));
 	}
 	//

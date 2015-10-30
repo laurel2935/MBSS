@@ -38,8 +38,8 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 	HashMap<String, _param> m_urlTable;//query-document specific parameters
 	Random m_rand;
 	
-	public T_DBN(double testRatio, double gamma, double alpha_a, double beta_a, double alpha_s, double beta_s){
-		super(testRatio, false);
+	public T_DBN(int maxQSessionSize, double testRatio, double gamma, double alpha_a, double beta_a, double alpha_s, double beta_s, int minQFre){
+		super(minQFre, testRatio, false, maxQSessionSize);
 		
 		m_gamma = gamma;
 		

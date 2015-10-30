@@ -59,8 +59,8 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 	HashMap<String, QueryStat> m_model;
 	double m_prior;//overall click probability
 	
-	public T_NaiveCM(double testRatio) {
-		super(testRatio, false);
+	public T_NaiveCM(int minQFre, double testRatio, int maxQSessionSize) {
+		super(minQFre, testRatio, false, maxQSessionSize);
 		m_model = new HashMap<String, QueryStat>();
 		m_prior = 0;
 	}
@@ -230,7 +230,10 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 	
 	public static void main(String[] args) {
 		//1
-		T_NaiveCM t_NaiveCM = new T_NaiveCM(0.75);
+		int maxQSessionSize = 15;
+		int minQFre = 1;
+		
+		T_NaiveCM t_NaiveCM = new T_NaiveCM(minQFre, 0.75, maxQSessionSize);
 		t_NaiveCM.train();
 		System.out.println(t_NaiveCM.getTestCorpusProb(false));
 	}

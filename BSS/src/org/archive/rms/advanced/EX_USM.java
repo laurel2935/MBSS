@@ -29,8 +29,8 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 	//optimizer
 	protected LBFGS _lbfgsOptimizer;
 		
-	EX_USM(double testRatio){
-		super(testRatio);
+	EX_USM(double testRatio, int maxQSessionSize, int minQFre){
+		super(testRatio, maxQSessionSize, minQFre);
 	}
 		
 	
@@ -417,7 +417,9 @@ public class EX_USM extends USMFrame implements T_Evaluation{
 	///////
 	public static void main(String []args){
 		//1
-		EX_USM ex_USM = new EX_USM(0.25);
+		int maxQSessionSize = 15;
+		int minQFre = 1;
+		EX_USM ex_USM = new EX_USM(0.25, maxQSessionSize, minQFre);
 		ex_USM.train();
 		//0-15
 		//before normalizing features; -5092.389142761225

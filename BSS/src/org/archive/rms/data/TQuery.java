@@ -1,9 +1,10 @@
 package org.archive.rms.data;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 
-import org.archive.access.feature.IAccessor;
 import org.archive.access.utility.SimpleTensor;
+import org.archive.rms.advanced.MAnalyzer;
 import org.archive.rms.advanced.MClickModel;
 import org.archive.rms.advanced.USMFrame;
 import org.archive.rms.advanced.USMFrame.FunctionType;
@@ -43,9 +44,15 @@ public class TQuery {
 	
 	SimpleTensor _marTensor;
 	
+	////for extending UBM & DBN
+	ArrayList<Double> _gTruthBasedMarReleProList;
+	
+	
 	public TQuery(BingQSession1 bingQSession){
 		this._urlList = new ArrayList<>();
 		this._gTruthClickSequence = new ArrayList<>();
+		
+		this._gTruthBasedMarReleProList = new ArrayList<>();
 		
 		//ini
 		this._key = bingQSession.getKey();
@@ -94,10 +101,20 @@ public class TQuery {
 		}
 	}
 	
+	
+	public void calMarFeatureList(Boolean totalMar, boolean plusContextInfor){
+		if(totalMar){
+			calMarFeatureList_Total(plusContextInfor);
+		}else{
+			calMarFeatureList_Partial(plusContextInfor);
+		}
+	}
+	
 	/**
-	 * 
+	 * do not calculate marginally relevant features considering the skipped document
+	 * ever used for testing cumulative utility based methods
 	 * **/
-	public void calMarFeatureList(){
+	private void calMarFeatureList_Partial(boolean plusContextInfor){
 		this._gTruthBasedMarFeatureList = new ArrayList<>();
 		
 		int firstC = getFirstClickPosition();
@@ -107,8 +124,62 @@ public class TQuery {
 			_gTruthBasedMarFeatureList.add(null);
 		}
 		
-		for(int rank=secondC; rank<=_urlList.size(); rank++){
-			if(_gTruthClickSequence.get(rank-1)){
+		if(plusContextInfor){
+			for(int rank=secondC; rank<=_urlList.size(); rank++){
+				if(_gTruthClickSequence.get(rank-1)){
+					ArrayList<Double> marFeatureVec = new ArrayList<>();
+					
+					//marginal features based on 3-dimension tensor
+					double [] partialMarFeatureVector = calPartialMarFeature(rank, MClickModel._defaultMarStyle);
+					for(int i=0; i<partialMarFeatureVector.length; i++){					
+						marFeatureVec.add(partialMarFeatureVector[i]);
+					}
+					
+					//marginal features based on context information				
+					TUrl tUrl = _urlList.get(rank-1);
+					//rankPosition
+					int ctxt_RPos = tUrl.getRankPosition();
+					marFeatureVec.add((double)ctxt_RPos);
+					//number of prior clicks
+					int ctxt_PriorClicks = tUrl.getPriorClicks();
+					marFeatureVec.add((double)ctxt_PriorClicks);
+					//distance to prior click
+					double ctxt_DisToLastClick = tUrl.getDisToLastClick();
+					marFeatureVec.add(ctxt_DisToLastClick);	
+								
+					_gTruthBasedMarFeatureList.add(marFeatureVec);				
+				}else {
+					_gTruthBasedMarFeatureList.add(null);
+				}
+			}
+		}else{
+			for(int rank=secondC; rank<=_urlList.size(); rank++){
+				if(_gTruthClickSequence.get(rank-1)){
+					ArrayList<Double> marFeatureVec = new ArrayList<>();
+					
+					//marginal features based on 3-dimension tensor
+					double [] partialMarFeatureVector = calPartialMarFeature(rank, MClickModel._defaultMarStyle);
+					for(int i=0; i<partialMarFeatureVector.length; i++){					
+						marFeatureVec.add(partialMarFeatureVector[i]);
+					}	
+								
+					_gTruthBasedMarFeatureList.add(marFeatureVec);				
+				}else {
+					_gTruthBasedMarFeatureList.add(null);
+				}
+			}
+		}				
+	}
+	/**
+	 * calculate marginally relevant features for skipped documents
+	 * **/
+	private void calMarFeatureList_Total(boolean plusContextInfor){
+		this._gTruthBasedMarFeatureList = new ArrayList<>();
+		
+		int firstC = getFirstClickPosition();
+		
+		if(plusContextInfor){
+			for(int rank=firstC+1; rank<=_urlList.size(); rank++){
 				ArrayList<Double> marFeatureVec = new ArrayList<>();
 				
 				//marginal features based on 3-dimension tensor
@@ -129,48 +200,57 @@ public class TQuery {
 				double ctxt_DisToLastClick = tUrl.getDisToLastClick();
 				marFeatureVec.add(ctxt_DisToLastClick);	
 							
-				_gTruthBasedMarFeatureList.add(marFeatureVec);				
-			}else {
-				_gTruthBasedMarFeatureList.add(null);
+				_gTruthBasedMarFeatureList.add(marFeatureVec);
 			}
-		}		
+		}else{
+			for(int rank=firstC+1; rank<=_urlList.size(); rank++){
+				ArrayList<Double> marFeatureVec = new ArrayList<>();
+				
+				//marginal features based on 3-dimension tensor
+				double [] partialMarFeatureVector = calPartialMarFeature(rank, MClickModel._defaultMarStyle);
+				for(int i=0; i<partialMarFeatureVector.length; i++){					
+					marFeatureVec.add(partialMarFeatureVector[i]);
+				}	
+							
+				_gTruthBasedMarFeatureList.add(marFeatureVec);
+			}
+		}				
 	}
 	
 	//mainly for framework without marginal concept
-	/*
-	public void calReleFeatureList(){
-		this._gTruthBasedReleFeatureList = new ArrayList<>();
+	
+	public void calReleFeature(HashMap<String, ArrayList<Double>> key2ReleFeatureMap, boolean plusContextInfor){
 		
-		for(int rank=1; rank<_urlList.size(); rank++){
-			if(_gTruthClickSequence.get(rank-1)){
-				
-				ArrayList<Double> releFeatureVec = new ArrayList<>();				
-				
-				TUrl tUrl = _urlList.get(rank-1);
-				double [] partialReleFeatures = tUrl.getReleFeatures();
-				for(int i=0; i<partialReleFeatures.length; i++){
-					releFeatureVec.add(partialReleFeatures[i]);
-				}
-				
-				//context information
-				//rankPosition
-				int ctxt_RPos = tUrl.getRankPosition();
-				releFeatureVec.add((double)ctxt_RPos);
-				//number of prior clicks
-				int ctxt_PriorClicks = tUrl.getPriorClicks();
-				releFeatureVec.add((double)ctxt_PriorClicks);
-				//distance to prior click
-				double ctxt_DisToLastClick = tUrl.getDisToLastClick();
-				releFeatureVec.add(ctxt_DisToLastClick);
-				
-				this._gTruthBasedReleFeatureList.add(releFeatureVec);
-				
-			}else{
-				this._gTruthBasedReleFeatureList.add(null);
+		for(int rank=1; rank<=_urlList.size(); rank++){
+			
+			TUrl tUrl = _urlList.get(rank-1);			
+			String urlKey = tUrl.getDocNo()+":"+ _queryText;
+			
+			ArrayList<Double> releFeatureList = new ArrayList<>();
+			ArrayList<Double> releFeatureVec = key2ReleFeatureMap.get(urlKey);
+			for(Double parF: releFeatureVec){
+				releFeatureList.add(parF);
 			}
+			
+			if(plusContextInfor){
+				//context information
+				//1 rankPosition
+				int ctxt_RPos = tUrl.getRankPosition();
+				releFeatureList.add((double)ctxt_RPos);
+				//2 number of prior clicks
+				int ctxt_PriorClicks = tUrl.getPriorClicks();
+				releFeatureList.add((double)ctxt_PriorClicks);
+				//3 distance to prior click
+				double ctxt_DisToLastClick = tUrl.getDisToLastClick();
+				releFeatureList.add(ctxt_DisToLastClick);
+			}
+			
+			double [] releFeatures = MAnalyzer.toDArray(releFeatureList);
+			
+			tUrl.setReleFeatureVector(releFeatures);			
 		}
 	}
-	*/
+	
 	
 	/**
 	 * 
@@ -550,7 +630,7 @@ public class TQuery {
 				for(int k=1; k<priorRanks.size(); k++){
 					Integer pos = priorRanks.get(k);
 					
-					double [] marFeatureVec = getMarFeature(pos);					
+					double [] marFeatureVec = getMarFeature_Join(pos);					
 					
 					for(int i=0; i<len; i++){						
 						double marFeaVal = marFeatureVec[i];
@@ -588,7 +668,7 @@ public class TQuery {
 			for(int k=1; k<priorRanks.size(); k++){
 				Integer pos = priorRanks.get(k);
 				
-				double [] marFeatureVec = getMarFeature(pos);
+				double [] marFeatureVec = getMarFeature_Join(pos);
 				
 				for(int i=0; i<len; i++){					
 					double marFeaVal = marFeatureVec[i];
@@ -650,7 +730,7 @@ public class TQuery {
 				for(int k=1; k<priorRanks.size(); k++){
 					Integer pos = priorRanks.get(k);
 					
-					double [] marFeatureVec = getMarFeature(pos);					
+					double [] marFeatureVec = getMarFeature_Join(pos);					
 					
 					for(int i=0; i<len; i++){						
 						double marFeaVal = marFeatureVec[i];
@@ -688,7 +768,7 @@ public class TQuery {
 			for(int k=1; k<priorRanks.size(); k++){
 				Integer pos = priorRanks.get(k);
 				
-				double [] marFeatureVec = getMarFeature(pos);
+				double [] marFeatureVec = getMarFeature_Join(pos);
 				
 				for(int i=0; i<len; i++){					
 					double marFeaVal = marFeatureVec[i];
@@ -847,6 +927,39 @@ public class TQuery {
 			return null;
 		}		
 	}
+	
+	/**
+	 * 
+	 * **/
+	public double calMarginalRele(int rankPosition, double [] mar_weights){
+		ArrayList<Double> marFeatureList = this._gTruthBasedMarFeatureList.get(rankPosition-1);
+		double [] marFeatureArray = MAnalyzer.toDArray(marFeatureList);
+		
+		double marReleVal = USMFrame.calFunctionVal(marFeatureArray, mar_weights, FunctionType.LINEAR);
+		double marRelePro = USMFrame.logistic(marReleVal);
+		
+		this._gTruthBasedMarReleProList.set(rankPosition-1, marRelePro);		
+		return marRelePro;	
+	}
+	
+	public double calMarReleVal(int rankPosition, double [] mar_weights){
+		ArrayList<Double> marFeatureList = this._gTruthBasedMarFeatureList.get(rankPosition-1);
+		double [] marFeatureArray = MAnalyzer.toDArray(marFeatureList);
+		
+		double marReleVal = USMFrame.calFunctionVal(marFeatureArray, mar_weights, FunctionType.LINEAR);	
+		return marReleVal;
+	}
+	
+	public double calMarRelePro(int rankPosition, double [] mar_weights){
+		ArrayList<Double> marFeatureList = this._gTruthBasedMarFeatureList.get(rankPosition-1);
+		double [] marFeatureArray = MAnalyzer.toDArray(marFeatureList);
+		
+		double marReleVal = USMFrame.calFunctionVal(marFeatureArray, mar_weights, FunctionType.LINEAR);
+		double marRelePro = USMFrame.logistic(marReleVal);
+		return marRelePro;	
+	}
+	
+	
 	//
 	public void marNormalize(double[] marMean, double[] marStdVar){
 		ArrayList<ArrayList<Double>> new_gTruthBasedMarFeatureList = new ArrayList<>();
@@ -1001,7 +1114,7 @@ public class TQuery {
 		return this._gTruthBasedCumuUtilityList;
 	}	
 	//
-	public double [] getMarFeature(int cRank){
+	public double [] getMarFeature_Join(int cRank){
 		ArrayList<Double> marFeatureVec = this._gTruthBasedMarFeatureList.get(cRank-1);
 		
 		for(Double f: marFeatureVec){
@@ -1021,6 +1134,11 @@ public class TQuery {
 		double [] allFeatures = USMFrame.combineArray(releFeatureVec, marFeatureVector);
 		
 		return allFeatures;
+	}
+	public double [] getPureMarFeature(int cRank){
+		ArrayList<Double> marFeatureVec = this._gTruthBasedMarFeatureList.get(cRank-1);
+		
+		return MAnalyzer.toDArray(marFeatureVec);
 	}
 	
 	public double getQSessionPro(){

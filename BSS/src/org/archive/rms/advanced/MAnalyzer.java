@@ -23,6 +23,8 @@ import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 import org.archive.rms.data.TUser;
 import org.archive.util.io.IOText;
+import org.archive.util.tuple.Pair;
+import org.archive.util.tuple.StrInt;
 import org.ejml.simple.SimpleMatrix;
 
 import session.Query;
@@ -84,7 +86,7 @@ public class MAnalyzer {
 	}
 	
 	
-	protected MAnalyzer(double testRatio, boolean useFeature){
+	protected MAnalyzer(int minQFre, double testRatio, boolean useFeature, int maxQSessionSize){
 		this._testRatio = testRatio;
 		
 		this._QSessionList = new ArrayList<>();
@@ -96,7 +98,11 @@ public class MAnalyzer {
 			loadFeatureVectors();
 		}	
 		
-		filter(8);
+		filterByClickNum(8);
+		
+		filterBySize(maxQSessionSize);
+		
+		filterByQFre(minQFre);
 		
 		this._testNum = (int)(this._QSessionList.size()*testRatio);
 		this._trainNum = this._QSessionList.size()-this._testNum;
@@ -104,7 +110,7 @@ public class MAnalyzer {
 	//////////
 	//Necessary for click-model training & testing
 	//////////
-	public void filter(int atMostClicks){
+	public void filterByClickNum(int atMostClicks){
 		ArrayList<TQuery> QSessionList = new ArrayList<>();
 		
 		for(TQuery tQuery: this._QSessionList){
@@ -114,6 +120,42 @@ public class MAnalyzer {
 		}
 		
 		this._QSessionList = QSessionList;
+	}
+	
+	public void filterBySize(int maxQSessionSize){
+		
+		for(TQuery tQuery: this._QSessionList){
+			ArrayList<TUrl> tUrList = tQuery.getUrlList();
+			if(tUrList.size() > maxQSessionSize){
+				for(int k=tUrList.size()-1; k>=maxQSessionSize; k--){
+					tUrList.remove(k);
+				}
+			}			
+		}
+	}
+	
+	public void filterByQFre(int minQFre){
+		
+		if(minQFre>1){
+			HashMap<String, StrInt> qFreMap = new HashMap<>();			
+			for(TQuery tQuery: this._QSessionList){
+				String txt = tQuery.getQueryText();				
+				if(qFreMap.containsKey(txt)){
+					qFreMap.get(txt).intPlus1();
+				}else{
+					qFreMap.put(txt, new StrInt(txt));
+				}			
+			}
+			
+			ArrayList<TQuery> QSessionList = new ArrayList<>();		
+			for(TQuery tQuery: this._QSessionList){
+				if(qFreMap.get(tQuery.getQueryText()).getSecond() >= minQFre){
+					QSessionList.add(tQuery);
+				}
+			}
+			
+			this._QSessionList = QSessionList;
+		}				
 	}
 	
 	public void loadFeatureVectors(){
