@@ -4,87 +4,82 @@
 package org.archive.rms.clickmodels;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map.Entry;
 
-import org.archive.rms.advanced.MAnalyzer;
+import org.archive.rms.advanced.USMFrame;
+import org.archive.rms.advanced.USMFrame.FunctionType;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
-
 
 /**
  * Naive counting based click model (baseline)
  */
-public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
+
+public class T_NaiveCM extends FeatureModel implements T_Evaluation {
 
 	class UrlStat {
-		double m_c;
-		int m_total;
+		//double m_c;
+		//int m_total;
+		int clickCnt;
+		int displayCnt;
+		double relePro;
 		
 		public UrlStat(boolean c){
-			m_c = c?1:0;
-			m_total = 1;
+			clickCnt = c?1:0;
+			displayCnt = 1;
 		}
 	}
 	
 	class QueryStat {
-		double m_clicks; // num of clicks for this query
-		int m_sum; // total (q,u) size
+		// number of clicks for this query
+		//double m_clicks; 
+		int qClickCnt;
+		// total (q,u) size
+		int m_sum;
+		double qRelePro;
+		
 		HashMap<String, UrlStat> m_urls;
 		
 		public QueryStat(){
 			m_sum = 0;
-			m_clicks = 0;
+			qClickCnt = 0;
 			m_urls = new HashMap<String, UrlStat>();
 		}
 		
 		public void addUrl(String url, boolean c){
 			//overall statics
 			if (c)
-				m_clicks++;
+				qClickCnt++;
 			m_sum ++;
 			
 			//URL specific statistics
 			if (m_urls.containsKey(url)){
 				UrlStat s = m_urls.get(url);
 				if (c)
-					s.m_c++;
-				s.m_total++;
+					s.clickCnt++;
+				s.displayCnt++;
 			} else 
 				m_urls.put(url, new UrlStat(c));
 		}
 	}
 	
 	HashMap<String, QueryStat> m_model;
-	double m_prior;//overall click probability
+	//overall click probability
+	double m_prior;
 	
-	public T_NaiveCM(int minQFre, double testRatio, int maxQSessionSize) {
-		super(minQFre, testRatio, false, maxQSessionSize);
+	public T_NaiveCM(int minQFre, Mode mode, boolean useFeature, double testRatio, int maxQSessionSize) {
+		super(minQFre, mode, useFeature, testRatio, maxQSessionSize);
+		
 		m_model = new HashMap<String, QueryStat>();
 		m_prior = 0;
 	}
 	
-	public void doTrain() {
+	protected void getStats(){
 		QueryStat qs = null;
 		
-		//--
-		/*
-		for(User user:m_userlist){
-			for(Query query:user.m_queries){
-				if (m_model.containsKey(query.m_query))
-					qs = m_model.get(query.m_query);
-				else{
-					qs = new QueryStat();
-					m_model.put(query.m_query, qs);
-				}
-				
-				for(URL url:query.m_urls)
-					qs.addUrl(url.m_URL, url.m_c>0);
-			}
-		}
-		*/
-		//--
 		for(TQuery tQuery: _QSessionList){
 			String qText = tQuery.getQueryText();
 			
@@ -101,7 +96,7 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 		}
 	}
 	
-	public void initialize() {
+	public void initializePriorRelePro() {
 		if (m_prior>0)
 			return;
 		
@@ -114,36 +109,219 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 	    while (qit.hasNext()) {//for each query
 	    	Entry<String, QueryStat> qu_pair = qit.next();
 	    	qs = qu_pair.getValue();
-	    	total_click += qs.m_clicks;
+	    	total_click += qs.qClickCnt;
 	    	total_pairs += qs.m_sum;
 	    	
 	    	//click probability for this query
-	    	qs.m_clicks /= qs.m_sum;
+	    	qs.qRelePro = qs.qClickCnt/qs.m_sum;
 	    	
 	    	uit = qs.m_urls.entrySet().iterator();
 	    	while(uit.hasNext()){
 	    		Entry<String, UrlStat> urls = uit.next();
 	    		us = urls.getValue();
-	    		us.m_c /= us.m_total;//posterior for this (q,u)
+	    		//posterior for this (q,u)
+	    		us.relePro = us.clickCnt/(us.displayCnt+2);
 	    	}
 	    }
+	    
 	    m_prior = total_click/total_pairs;
 	    System.out.println("[Info]Global click probability " + m_prior);
 	}
 
-	@Override
-	public double getClickProb(TQuery tQuery, TUrl tUrl) {
+	protected void estimateParas(){
+		if(!_mode.equals(Mode.Original)){
+	    	try {
+	    		optimize(50);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+	    }
+	}
+		
+	////
+	protected double calMinObjFunctionValue_NaiveRele(){
+		double objVal = 0.0;
+		
+		for(int i=0; i<this._trainNum; i++){
+			TQuery tQuery = this._QSessionList.get(i);
+			
+			for(TUrl tUrl: tQuery.getUrlList()){				
+				double postRelePro = getQURelePro(Mode.Original, tQuery, tUrl, false);
+				
+				double feaRelePro = tUrl.calRelePro(_naiveReleWeights);
+				
+				double var = Math.pow(feaRelePro-postRelePro, 2);
+				
+				objVal += var;
+			}
+		}
+			
+		return objVal;
+	}
+	
+	protected double calMinObjFunctionValue_MarginalRele(){
+		double objVal = 0.0;
+		
+		double [] naiveReleWeights = getComponentOfNaiveReleWeight();
+		double [] marReleWeights   = getComponentOfMarReleWeight();
+		
+		for(int i=0; i<this._trainNum; i++){
+			TQuery tQuery = this._QSessionList.get(i);
+			int firstC = tQuery.getFirstClickPosition();
+			//1
+			for(int rank=1; rank<=firstC; rank++){
+				TUrl tUrl = tQuery.getUrlList().get(rank-1);
+				
+				double postRelePro = getQURelePro(Mode.Original, tQuery, tUrl, false);				
+				double feaRelePro = tUrl.calRelePro(naiveReleWeights);
+				
+				double var = Math.pow(feaRelePro-postRelePro, 2);
+				
+				objVal += var;				
+			}
+			//2
+			for(int rank=firstC+1; rank<=tQuery.getUrlList().size(); rank++){
+				TUrl tUrl = tQuery.getUrlList().get(rank-1);
+				
+				double postRelePro = getQURelePro(Mode.Original, tQuery, tUrl, false);
+				double marRelePro = tQuery.calMarRelePro(rank, marReleWeights);
+				
+				double var = Math.pow(marRelePro-postRelePro, 2);
+				
+				objVal += var;			
+			}
+		}
+			
+		return objVal;
+	}
+	////	
+	protected void calFunctionGradient_NaiveRele(double[] g){	
+		for(int i=0; i<this._trainNum; i++){
+			TQuery tQuery = this._QSessionList.get(i);			
+			
+			for(TUrl tUrl: tQuery.getUrlList()){						
+				
+				double postRelePro = getQURelePro(Mode.Original, tQuery, tUrl, false);							
+				double feaRelePro = tUrl.calRelePro(_naiveReleWeights);
+				//1
+				double firstPart = 2*(feaRelePro-postRelePro);
+				//2
+				double releVal = USMFrame.calFunctionVal(tUrl.getReleFeatures(), _naiveReleWeights, FunctionType.LINEAR);
+				double expVal = Math.exp(releVal);
+				double secondPart = expVal/Math.pow((1+expVal), 2);
+				
+				//traverse 3
+				double [] naiveReleFeatures = tUrl.getReleFeatures();
+				for(int k=0; k<naiveReleFeatures.length; k++){
+					g[k] += (firstPart*secondPart*naiveReleFeatures[k]);
+				}				
+			}
+		}
+	}
+
+	protected void calFunctionGradient_MarginalRele(double[] g){		
+		double [] naiveReleWeights = getComponentOfNaiveReleWeight();
+		double [] marReleWeights   = getComponentOfMarReleWeight();
+		
+		for(int i=0; i<this._trainNum; i++){
+			TQuery tQuery = this._QSessionList.get(i);
+			int firstC = tQuery.getFirstClickPosition();			
+			
+			for(int rank=1; rank<=firstC; rank++){
+				TUrl tUrl = tQuery.getUrlList().get(rank-1);				
+				
+				double postRelePro = getQURelePro(Mode.Original, tQuery, tUrl, false);							
+				double feaRelePro = tUrl.calRelePro(naiveReleWeights);
+				//1
+				double firstPart = 2*(feaRelePro-postRelePro);
+				//2
+				double releVal = USMFrame.calFunctionVal(tUrl.getReleFeatures(), naiveReleWeights, FunctionType.LINEAR);
+				double expVal = Math.exp(releVal);
+				double secondPart = expVal/Math.pow((1+expVal), 2);
+				
+				//traverse 3
+				double [] naiveReleFeatures = tUrl.getReleFeatures();
+				for(int k=0; k<naiveReleFeatures.length; k++){
+					g[k] += (firstPart*secondPart*naiveReleFeatures[k]);
+				}				
+			}
+			
+			for(int rank=firstC+1; rank<=tQuery.getUrlList().size(); rank++){
+				TUrl tUrl = tQuery.getUrlList().get(rank-1);
+				
+				double postRelePro = getQURelePro(Mode.Original, tQuery, tUrl, false);
+				double marRelePro = tQuery.calMarRelePro(rank, marReleWeights);
+				
+				//1
+				double firstPart = 2*(marRelePro-postRelePro);
+				//2
+				double releVal = tQuery.calMarReleVal(rank, marReleWeights);
+				double expVal = Math.exp(releVal);
+				double secondPart = expVal/Math.pow((1+expVal), 2);
+				
+				//traverse 3
+				double [] marReleFeatures = tQuery.getPureMarFeature(rank);
+				for(int k=naiveReleWeights.length; k<_twinWeights.length; k++){
+					g[k] += (firstPart*secondPart*marReleFeatures[k]);
+				}
+			}
+		}
+	}
+
+	
+	
+	public double getClickProb_original(TQuery tQuery, TUrl tUrl) {
 		String qText = tQuery.getQueryText();
 		String urlKey = tUrl.getDocNo();
 		
 		if (m_model.containsKey(qText)){
 			QueryStat qs = m_model.get(qText);
 			if (qs.m_urls.containsKey(urlKey))
-				return qs.m_urls.get(urlKey).m_c;
+				return qs.m_urls.get(urlKey).relePro;
 			else
-				return qs.m_clicks + 0.5*m_rand.nextDouble();
+				return qs.qRelePro;
 		} else
-			return m_prior + 0.5*m_rand.nextDouble();
+			return m_prior;
+	}
+	
+	public double getClickProb(TQuery tQuery, TUrl tUrl) {
+		return getQURelePro(_mode, tQuery, tUrl, false);		
+	}
+	
+	private double getQURelePro(Mode mode, TQuery tQuery, TUrl tUrl, boolean add4miss){
+		if(mode.equals(Mode.Original)){
+			String qText = tQuery.getQueryText();
+			String urlKey = tUrl.getDocNo();
+			
+			if (m_model.containsKey(qText)){
+				QueryStat qs = m_model.get(qText);
+				if (qs.m_urls.containsKey(urlKey))
+					return qs.m_urls.get(urlKey).relePro;
+				else if(add4miss){
+					return qs.qRelePro;
+				}else{					
+					System.out.println("Unseen query-url pair error!");
+					return Double.NaN;
+				}					
+			}else if(add4miss){
+				return m_prior + 0.5*m_rand.nextDouble();
+			}else{
+				System.out.println("Unseen query-url pair error!");
+				return Double.NaN;
+			}				
+		}else if(mode.equals(Mode.NaiveRele)){
+			double naiveRelePro = tUrl.calRelePro(_naiveReleWeights);
+			return naiveRelePro;
+		}else if(mode.equals(Mode.MarginalRele)){
+			double [] marReleWeights   = getComponentOfMarReleWeight();
+			/////???it should be noted that the unknown of click events of prior clicks
+			double marRelePro = tQuery.calMarginalRele(tUrl.getRankPosition(), marReleWeights);
+			return marRelePro;
+		}else{
+			System.out.println("Unaccepted model error!");
+			System.exit(0);
+			return Double.NaN;
+		}
 	}
 	
 	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
@@ -190,9 +368,20 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 		return corpusLikelihood;		
 	}
 	
+	protected void updateAlpha_NaiveRele(){
+		System.out.println("Error call w.r.t. updateAlpha_NaiveRele()");
+		System.exit(0);		
+	}
+	
+	protected void updateAlpha_MarginalRele(){
+		System.out.println("Error call w.r.t. updateAlpha_MarginalRele()");
+		System.exit(0);
+	}
+	
 	public void train(){	
-		initialize();
-		doTrain();
+		initialSteps(false);
+		initializePriorRelePro();
+		estimateParas();
 	}
 	
 	/*
@@ -230,10 +419,21 @@ public class T_NaiveCM extends MAnalyzer implements T_Evaluation {
 	
 	public static void main(String[] args) {
 		//1
-		int maxQSessionSize = 15;
-		int minQFre = 1;
+		double testRatio = 0.25;
+		int maxQSessionSize = 10;
+		int minQFre = 2;
+
+		Mode mode = Mode.NaiveRele;
 		
-		T_NaiveCM t_NaiveCM = new T_NaiveCM(minQFre, 0.75, maxQSessionSize);
+		boolean useFeature;
+		
+		if(mode.equals(Mode.Original)){
+			useFeature = false;
+		}else{
+			useFeature = true;
+		}
+		// due to the fact of serious sparcity problem!!!!, is it ok to be used as a baseline?
+		T_NaiveCM t_NaiveCM = new T_NaiveCM(minQFre, mode, useFeature, testRatio, maxQSessionSize);
 		t_NaiveCM.train();
 		System.out.println(t_NaiveCM.getTestCorpusProb(false));
 	}

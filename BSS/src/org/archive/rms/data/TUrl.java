@@ -29,7 +29,10 @@ public class TUrl {
 	//the likelihood of being relevant
 	double _relePro;
 	//the likelihood of being marginally relevant
-	double _marRelePro;
+	public double _marRelePro;
+	
+	////
+	public double _postMarRelePro;
 	
 	TUrl(String urlStr, int rankPosition, int gTruthClick, boolean htmlAvailable){
 		this._urlStr = urlStr;

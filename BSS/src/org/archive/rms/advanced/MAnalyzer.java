@@ -17,6 +17,7 @@ import org.archive.access.index.DocData.DocStyle;
 import org.archive.access.utility.SimpleTensor;
 import org.archive.nicta.kernel.LDAKernel;
 import org.archive.nicta.kernel.TFIDF_A1;
+import org.archive.rms.clickmodels.T_Evaluation.Mode;
 import org.archive.rms.data.BingQSession1;
 import org.archive.rms.data.DataAccessor;
 import org.archive.rms.data.TQuery;
@@ -68,12 +69,12 @@ public class MAnalyzer {
 	//simQSession.getKey()+":"+qText
 	protected HashMap<String, SimpleTensor> key2MarFeatureMap;
 		
-	protected MClickModel _mClickModel;
+	protected MClickModel _mClickModel;	
 	
 	//for features
 	IAccessor _iAccessor;
-	//= new IAccessor(DocStyle.ClickText, false, true);
-		
+	//= new IAccessor(DocStyle.ClickText, false, true);	
+	
 	/**
 	 * @param ini true is for buffering features. once the features have been buffered, it should be false;
 	 * **/
