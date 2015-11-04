@@ -423,7 +423,7 @@ public class T_NaiveCM extends FeatureModel implements T_Evaluation {
 		int maxQSessionSize = 10;
 		int minQFre = 2;
 
-		Mode mode = Mode.NaiveRele;
+		Mode mode = Mode.Original;
 		
 		boolean useFeature;
 		

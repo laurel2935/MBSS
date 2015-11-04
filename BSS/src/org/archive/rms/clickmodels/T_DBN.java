@@ -18,7 +18,9 @@ import org.archive.rms.data.TUrl;
 public class T_DBN extends MAnalyzer implements T_Evaluation {
 
 	class _param{
+		//attractiveness
 		double m_a;
+		//satisfaction
 		double m_s;
 		
 		double[] m_ss_a;
@@ -35,6 +37,7 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 	
 	//regarding the parameters (alpha,beta) for beta distribution 
 	double m_gamma, m_alpha_a, m_beta_a, m_alpha_s, m_beta_s;
+	
 	HashMap<String, _param> m_urlTable;//query-document specific parameters
 	Random m_rand;
 	
@@ -90,7 +93,7 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 				//prior beta distribution with parameters (1,1)
 				beta[uSize][0] = 1.0; beta[uSize][1] = 1.0;//in case we have varying length of sessions
 				
-				//alpha
+				////alpha
 				for(int i=0; i<uSize; i++){//alpha update
 					//c = query.m_urls.get(i).m_click>0?1:0;
 					TUrl url = urlList.get(i);
@@ -101,15 +104,18 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 					if (c==0){
 						//corresponds to equation page_10 in the paper appendix: e.g., one can easily derive the recursion formula:
 						//c=0, e=0, thus (1-p.m_a):c_(i+1)=0 (1-m_gamma):e_(i+1)=0
+						//In particular, the 1st part: e'=0, the 2nd part: e'=1
 						alpha[i+1][0] = alpha[i][0] + alpha[i][1]*(1-p.m_a)*(1-m_gamma);
 						//c=0, e=1, thus (1-p.m_a):c_(i+1)=0 m_gamma:e_(i+1)=1
+						//In particular, the 1st part: e'=0 (thus zero probability), the 2nd part: e'=1
 						alpha[i+1][1] = alpha[i][1]*(1-p.m_a)*m_gamma;
 					} else {
 						alpha[i+1][0] = alpha[i][1]*(p.m_a*(1-m_gamma+p.m_s*m_gamma));
 						alpha[i+1][1] = alpha[i][1]*p.m_a*m_gamma*(1-p.m_s);
 					}
 				}
-				//beta
+				
+				////beta
 				for(int i=uSize; i>0; i--){//beta update
 					TUrl url = urlList.get(i-1);
 					//c = query.m_urls.get(i-1).m_click>0?1:0;
@@ -123,6 +129,7 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 					else
 						beta[i-1][1] = beta[i][0]*(p.m_a*(1-m_gamma+p.m_s*m_gamma)) + beta[i][1]*p.m_a*m_gamma*(1-p.m_s);
 				}
+				
 				////sufficient statistics
 				for(int i=0; i<uSize; i++){
 					//URL url = query.m_urls.get(i);
@@ -132,38 +139,52 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 					//p = lookupURL(query.m_query, url.m_URL, true);
 					p = lookupURL(qText, url.getDocNo(), true);
 					
-					p.m_ss_a[1] += 1;						
+					p.m_ss_a[1] += 1;	
+					
 					if (c>0){
 						p.m_ss_a[0] += 1;
-							
+						//	
 						p.m_ss_s[0] += alpha[i+1][0] * beta[i+1][0] / beta[0][1] / ((1-m_gamma)/p.m_s + m_gamma);
 						p.m_ss_s[1] += 1; 
 					} else {
+						//
 						p.m_ss_a[0] += p.m_a * alpha[i][0] * beta[i][0] / beta[0][1];
 					}
 				}
 			}
-			//M-step
+			
+			////M-step
+			/**
+			 * (1) w.r.t. the mode of a Beta distributed random variable is the most likely value of the distribution (i.e., the peak in the pdf)
+			 *     it is given as \alpha-1/(\alpha+\beta-2)
+			 * (2) for sufficient statistics, m_ss_a[1]: times of being "0"-event, p.m_ss_a[0]: times of being "1"-event, the same goes for m_ss_s
+			 * **/
 			double old;
 			diff = 0;
-			for(_param para:m_urlTable.values()){
+			for(_param para: m_urlTable.values()){
 				old = para.m_a;
+				
 				para.m_a = (m_alpha_a-1+para.m_ss_a[0]) / (m_alpha_a+m_beta_a-2+para.m_ss_a[1]);
+				
 				diff += (old-para.m_a)*(old-para.m_a);
 				
 				old = para.m_s;
+				
 				para.m_s = (m_alpha_s-1+para.m_ss_s[0]) / (m_alpha_s+m_beta_s-2+para.m_ss_s[1]);
 				if (para.m_s==0)
 					para.m_s = 1e-10;
+				
 				diff += (old-para.m_s)*(old-para.m_s);
 				
 				//clear the ss
 				para.m_ss_a[0] = 0; para.m_ss_a[1] = 0;
 				para.m_ss_s[0] = 0; para.m_ss_s[1] = 0;
 			}
+			
 			diff /= m_urlTable.size();
 			System.out.println("[Info]EM step " + step + ", diff:" + diff);
 		}
+		
 		System.out.println("[Info]Processed " + m_urlTable.size() + " (q,u) pairs...");
 	}
 		
@@ -183,7 +204,7 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 	}
 	
 	@Override
-	public double getTestCorpusProb(boolean onlyClicks){
+	public double getTestCorpusProb(boolean onlyClicks, boolean uniformaCmp){
 		double corpusLikelihood = 0.0;
 		
 		for(int k=this._testNum; k<this._QSessionList.size(); k++){

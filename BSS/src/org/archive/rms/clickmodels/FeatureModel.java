@@ -381,13 +381,20 @@ public abstract class FeatureModel extends MAnalyzer {
 		}
 	}
 	////
-	protected boolean skipQuerySession(TQuery tQuery){
-		if(includeUnseeUrl(tQuery)){
+	protected boolean skipQuerySession(TQuery tQuery, boolean uniformaComparison){
+		boolean hasUnseenQuery = includeUnseeUrl(tQuery);
+		
+		if(hasUnseenQuery){
 			if(_mode.equals(Mode.Original)){
 				return true;
+			}else if(uniformaComparison){
+				return true;
+			}else{
+				return false;
 			}
+		}else{
+			return false;
 		}
-		return false;
 	}
 	
 	protected boolean includeUnseeUrl(TQuery tQuery){

@@ -13,10 +13,11 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import optimizer.LBFGS;
+import optimizer.LBFGS.ExceptionWithIflag;
+
 import org.archive.rms.advanced.USMFrame;
 import org.archive.rms.advanced.USMFrame.FunctionType;
-import org.archive.rms.clickmodels.T_Evaluation.Mode;
-import org.archive.rms.clickmodels.T_UBM_Mar.rdStat;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 
@@ -32,6 +33,8 @@ import org.archive.rms.data.TUrl;
  * 
  * !a possible shortcoming is: it has pay for the cost of estimating the relevance or marginal utility below the last click.
  */
+
+
 public class T_UBM extends FeatureModel implements T_Evaluation {
 	
 	//for estimating the \gama, i.e., the effect of rank position and distance to last click for a pair of query and url
@@ -70,8 +73,10 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		}
 	}
 
-	////model parameters
-	//r, position and distance 10 * 10
+	/**
+	 * model parameters
+	 * **/
+	//\gamma matrix, position and distance 10 * 10
 	double[][] m_gamma;
 	double [][] _gammaSta;
 	//\alpha, query-document-specific parameters
@@ -85,7 +90,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	HashMap<String, _stat> m_uq_stat_mar;
 	
 	double m_alpha_init, m_gamma_init, m_mu_init;
-	
+	//i.e., query-session size
 	int _maxSize;
 	
 	
@@ -112,19 +117,17 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	}
 	//
 	_stat getStat_ext(TQuery tQuery, TUrl tUrl, boolean add4miss){
-		//the problem: the same query and url, but different sizes of result lists
-		//String key = query + "@" + url;
 		String key = getKey(tQuery, tUrl);
 		
 		if (m_uq_stat.containsKey(key))
 			return m_uq_stat.get(key);
 		else if (add4miss) {
-			//_stat s = new _stat(size);
 			_stat s = new _stat(_defaultQSessionSize);
 			m_uq_stat.put(key, s);
 			return s;
-		} else
+		}else{
 			return null;
+		}			
 	}
 	//
 	_stat getRDStat_MarRele(TQuery tQuery, TUrl tUrl, boolean add4miss){
@@ -256,6 +259,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		
 		getSeenQUPairs();
 	}
+	//
 	double getAlpha_original(String query, String url, boolean add4miss){
 		String key = query + "@" + url;
 		if (m_alpha.containsKey(key))
@@ -267,11 +271,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		else 
 			return m_alpha_init + m_rand.nextDouble()/10.0;//for non-existing key
 	}
-	
-	
-		
+	//	
 	protected double getAlpha_Ext(TQuery tQuery, TUrl tUrl, boolean add4miss, Mode mode, boolean firstTime){
-		//String key = tQuery.getKey()+"@"+ tUrl.getDocNo()+"@"+Integer.toString(tUrl.getRankPosition());
 		String key = getKey(tQuery, tUrl);
 		
 		if (m_alpha.containsKey(key))
@@ -289,7 +290,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 					m_alpha.put(key, alphaV);
 					return alphaV;
 				}else if(mode.equals(Mode.MarginalRele)){
-					double alphaV = tQuery.calMarginalRele(tUrl.getRankPosition(), _mar_weights);
+					double alphaV = tQuery.calMarginalRele(tUrl.getRankPosition(), getComponentOfMarReleWeight());
 					m_alpha.put(key, alphaV);
 					return alphaV;
 				}else{
@@ -299,8 +300,6 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 				}
 			}			
 		}else{
-			//return m_alpha_init + m_rand.nextDouble()/10.0;//for non-existing key
-			//System.exit(0);
 			System.out.println("Unseen query-url pair error!");
 			return Double.NaN;
 		}			
@@ -328,8 +327,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		m_mu = new HashMap<String, _pair>();
 		m_uq_stat = new HashMap<String, _stat>();
 		
-		//only training part???
-		for(TQuery tQuery : _QSessionList){
+		for(int qNum=1; qNum<=this._trainNum; qNum++){
+			TQuery tQuery = this._QSessionList.get(qNum-1);
 			String qText = tQuery.getQueryText();
 			//if (query.m_query.contains("@"))
 			//query.m_query = query.m_query.replace("@", "_");
@@ -383,7 +382,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		getSeenQUPairs();
 	}
 		
-	public void EM(int iter, double tol){				
+	public void EM_Multiple(int iter, double tol){				
 		Iterator<Map.Entry<String, Double>> it;
 		Iterator<Map.Entry<String, _pair>> mu_iter;
 		_stat st;
@@ -569,6 +568,202 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		System.out.println("[Info]Processed " + m_alpha.size() + " (q,u) pairs...");
 	}
 	
+	public void EM_Single(int iter, double tol){				
+		Iterator<Map.Entry<String, Double>> alphaCursor;
+		_stat uqStat;
+		double a_new, a_old, gamma, diff=1;
+		double[][] gamma_new = new double[_maxSize][_maxSize+1];
+		double[][] gamma_sta = new double[_maxSize][_maxSize+1];
+		
+		int step = 0;
+		
+		while(step++<iter && diff>tol){
+			diff = 0;	
+			
+		    ////update gamma
+		    alphaCursor = m_alpha.entrySet().iterator();
+		    while (alphaCursor.hasNext()) {
+		        Map.Entry<String, Double> alpha = alphaCursor.next();		        
+		        uqStat = m_uq_stat.get(alpha.getKey());
+		        int size = uqStat._size;		        
+		        a_new = alpha.getValue();
+		        
+		        /*
+		        for(int i=0; i<m_gamma.length; i++){
+		        	for(int j=1; j<=i+1; j++){//no zero distance
+		        		if ((st.m_click_rd[i][j] + st.m_skip_rd[i][j])>0)
+			        	{
+			        		gamma_new[i][j][0] += st.m_click_rd[i][j] + st.m_skip_rd[i][j] * (1-a)*mu*m_gamma[i][j] / (1.0-a*mu*m_gamma[i][j]);
+			        		gamma_new[i][j][1] += st.m_click_rd[i][j] + st.m_skip_rd[i][j] * mu*(1-a*m_gamma[i][j]) / (1.0-a*mu*m_gamma[i][j]);
+			        	}
+		        	}
+		        }
+		        */
+		        
+		        for(int i=0; i<size; i++){
+		        	for(int j=1; j<=i+1; j++){//no zero distance
+		        		int cnt = uqStat.m_click_rd[i][j] + uqStat.m_skip_rd[i][j];
+		        		if (cnt > 0){
+		        			gamma_sta[i][j] += cnt;
+			        		gamma_new[i][j] += (uqStat.m_click_rd[i][j] + uqStat.m_skip_rd[i][j]*(1-a_new)*m_gamma[i][j]/(1.0-a_new*m_gamma[i][j]));
+			        	}
+		        	}
+		        }
+		    }
+		    
+		    for(int i=0; i<m_gamma.length; i++){
+	        	for(int j=1; j<=i+1; j++){
+	        		if(gamma_sta[i][j] > 0){
+	        			gamma = gamma_new[i][j]/gamma_sta[i][j];
+	        		}else{
+	        			gamma = m_gamma_init;
+	        		}
+	        		
+	        		m_gamma[i][j] = gamma;
+	        		
+	        		diff += (gamma-m_gamma[i][j])*(gamma-m_gamma[i][j]);	        		
+	        		if (Double.isNaN(diff)){
+	        			System.err.println("[ERROR]Encounter NaN for updating gamma!");
+	        		}			        	
+	        	}
+		    }
+		    //
+			
+			////update alpha
+			alphaCursor = m_alpha.entrySet().iterator();
+		    while (alphaCursor.hasNext()) {
+		        Map.Entry<String, Double> alpha = alphaCursor.next();		        
+		        uqStat = m_uq_stat.get(alpha.getKey());
+		        int size = uqStat._size;
+		        
+		        a_old = alpha.getValue();
+		        a_new = 0;
+		        
+		        /*
+		        for(int i=0; i<m_gamma.length; i++)
+		        	for(int j=1; j<=i+1; j++)//no zero distance
+		        		if (st.m_skip_rd[i][j]>0)
+		        			a += st.m_skip_rd[i][j]*a_old*(1.0-mu*m_gamma[i][j])/(1.0-a_old*mu*m_gamma[i][j]);
+		        */
+		        for(int i=0; i<size; i++)
+		        	for(int j=1; j<=i+1; j++)//no zero distance
+		        		if (uqStat.m_skip_rd[i][j]>0)
+		        			a_new += uqStat.m_skip_rd[i][j]*a_old*(1.0-m_gamma[i][j])/(1.0-a_old*m_gamma[i][j]);
+		        
+		        a_new = (a_new+uqStat.m_click)/(uqStat.m_click+uqStat.m_skip);
+		        m_alpha.put(alpha.getKey(), a_new);
+		        
+		        diff += (a_new-a_old)*(a_new-a_old);		        
+		        if (Double.isNaN(diff)){
+		        	System.err.println("[ERROR]Encounter NaN for updating alpha!");
+		        }
+		    }
+		    
+		    ///*
+		    if(!_mode.equals(Mode.Original)){
+		    	try {
+		    		optimize(40);
+				} catch (Exception e) {
+					e.printStackTrace();
+					//System.exit(0);
+				}
+		    	//
+		    	updateAlpha();
+		    }
+		    //*/
+	
+		    
+		    diff /= (m_alpha.size() + 45 + m_mu.size());//parameter size
+		    
+		    System.out.println("[Info]EM step " + step + ", diff:" + diff);
+		}	
+		
+		System.out.println("[Info]Processed " + m_alpha.size() + " (q,u) pairs...");
+		
+		//one-time optimization
+		/*
+		if(!_mode.equals(Mode.Original)){
+	    	try {
+	    		optimize(40);
+			} catch (Exception e) {
+				e.printStackTrace();
+				//System.exit(0);
+			}
+	    	//
+	    	updateAlpha();
+	    }
+		*/
+	}
+	
+	protected void optimize(int maxIter, double[][] gamma_opt) throws ExceptionWithIflag{
+		
+		LBFGS _lbfgsOptimizer = new LBFGS();
+		
+		int[] iprint = {-1, 0}, iflag = {0};
+		
+		//gradient w.r.t. the function
+		double[] g, diag;
+		
+		if(_mode.equals(Mode.NaiveRele)){
+			g = new double[_naiveReleWeights.length];
+			diag = new double[_naiveReleWeights.length];	
+		}else{
+			g = new double[_twinWeights.length];
+			diag = new double[_twinWeights.length];			
+		}
+		
+
+		int iter = 0;
+		//objVal
+		double f=0;	
+				
+		do {			
+			
+			if (iflag[0]==0 || iflag[0]==1){
+				
+				//function value based on the posterior graph inference! 
+				f = calMinObjFunctionValue(gamma_opt);
+				
+				/*
+				if(f < USMFrame._MIN){
+					f = USMFrame._MIN;
+				}
+				*/
+
+				//System.out.println("Iter-"+iter+":\tObjValue: "+f);
+				
+				calFunctionGradient(g);					
+				
+				//w.r.t. max objective function
+				//MatrixOps.timesEquals(g, -1);
+			}
+			
+			//if (iflag[0]==0 || iflag[0]==2){//if we want to estimate the diagonals by ourselves
+			//	getDiagnoal(diag, iflag[0]==2);
+			//}
+			
+			try{				
+				//_lbfgsOptimizer.lbfgs(mar_weights.length, 5, mar_weights, -f, g, false, diag, iprint, 1e-3, 1e-3, iflag);
+				if(_mode.equals(Mode.NaiveRele)){
+					_lbfgsOptimizer.lbfgs(_naiveReleWeights.length, 5, _naiveReleWeights, f, g, false, diag, iprint, 1e-3, 1e-3, iflag);
+				}else{
+					_lbfgsOptimizer.lbfgs(_twinWeights.length, 5, _twinWeights, f, g, false, diag, iprint, 1e-3, 1e-3, iflag);		
+				}
+
+			} catch (ExceptionWithIflag ex){
+				System.err.println("[Warning]M-step cannot proceed!");
+			}	
+			
+			//outputParas();
+			//System.out.println();
+			
+		}while(iflag[0]>0 && ++iter<maxIter);
+	}
+	
+	protected double calMinObjFunctionValue(double[][] gamma_opt){
+		return Double.NaN;
+	}
+	
 	public void EM_MarRele(int iter, double tol){				
 		Iterator<Map.Entry<String, Double>> alphaCursor;
 		
@@ -751,8 +946,6 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
 		//one-time calculation
 		//tQuery.calContextInfor();
-		
-		String qText = tQuery.getQueryText();
 		ArrayList<TUrl> urlList = tQuery.getUrlList();
 		
 		double sessionProb = 1.0;
@@ -768,7 +961,13 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 					}else{
 						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false);
 						int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
-						sessionProb *= (alpha_qu*m_gamma[rankPos-1][dis]);
+						
+						double curGamma = m_gamma[rankPos-1][dis];
+						if(0 == curGamma){
+							curGamma = m_gamma_init;
+						}
+						
+						sessionProb *= (alpha_qu*curGamma);
 					}					
 				}			
 			}
@@ -780,19 +979,52 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 					if(1 == rankPos){
 						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false);
 						sessionProb *= alpha_qu;
+						
+						if(0 == sessionProb){
+							System.out.println("1 alpha_qu:\t"+alpha_qu);
+							System.exit(0);
+						}
 					}else{
 						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false);
 						int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
-						sessionProb *= (alpha_qu*m_gamma[rankPos-1][dis]);
+						
+						double curGamma = m_gamma[rankPos-1][dis];
+						if(0 == curGamma){
+							curGamma = m_gamma_init;
+						}
+						
+						sessionProb *= (alpha_qu*curGamma);
+						if(0 == sessionProb){
+							System.out.println("2 > 0 alpha_qu:\t"+alpha_qu);
+							System.exit(0);
+						}
 					}					
 				}else{
 					if(1 == rankPos){
 						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false);
+						if(1 == alpha_qu){
+							alpha_qu = 0.9;
+						}
 						sessionProb *= (1-alpha_qu);
+						
+						if(0 == sessionProb){
+							System.out.println("1 =0 alpha_qu:\t"+alpha_qu);
+							System.exit(0);
+						}
 					}else{
 						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false);
 						int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
-						sessionProb *= (1-alpha_qu*m_gamma[rankPos-1][dis]);
+						
+						double curGamma = m_gamma[rankPos-1][dis];
+						if(0 == curGamma){
+							curGamma = m_gamma_init;
+						}
+						
+						sessionProb *= (1-alpha_qu*curGamma);
+						if(0 == sessionProb){
+							System.out.println("2 =0 alpha_qu:\t"+alpha_qu);
+							System.exit(0);
+						}
 					}					
 				}			
 			}
@@ -802,7 +1034,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	}
 	
 	@Override
-	public double getTestCorpusProb(boolean onlyClicks){	
+	public double getTestCorpusProb(boolean onlyClicks, boolean uniformCmp){	
 		System.out.println();
 		System.out.println("TrainNum: "+_trainNum+"\tTestNum: "+_testNum);
 		
@@ -821,7 +1053,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			
-			if(skipQuerySession(tQuery)){
+			if(skipQuerySession(tQuery, uniformCmp)){
 				continue;
 			}
 			
@@ -1047,7 +1279,9 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	}
 	////
 	protected void estimateParas() {
-		EM(40, 1e-4);
+		//EM_Multiple(70, 1e-8);
+		
+		EM_Single(40, 1e-8);
 	}
 	
 //	public static void main(String[] args) {		
@@ -1100,9 +1334,9 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		//1
 		double testRatio = 0.25;
 		int maxQSessionSize = 10;
-		int minQFre = 8;
+		int minQFre = 2;
 
-		Mode mode = Mode.Original;
+		Mode mode = Mode.NaiveRele;
 		
 		boolean useFeature;
 		
@@ -1117,6 +1351,6 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		t_UBM.train();
 		
 		//-4928.668887248367
-		System.out.println(t_UBM.getTestCorpusProb(false));
+		System.out.println(t_UBM.getTestCorpusProb(false, true));
 	}
 }
