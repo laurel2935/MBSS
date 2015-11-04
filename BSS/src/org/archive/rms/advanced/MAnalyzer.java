@@ -99,11 +99,11 @@ public class MAnalyzer {
 			loadFeatureVectors();
 		}	
 		
-		filterByClickNum(8);
-		
 		filterBySize(maxQSessionSize);
 		
 		filterByQFre(minQFre);
+		//should head of filterBySize
+		filterByClickNum(8);
 		
 		this._testNum = (int)(this._QSessionList.size()*testRatio);
 		this._trainNum = this._QSessionList.size()-this._testNum;
@@ -115,7 +115,8 @@ public class MAnalyzer {
 		ArrayList<TQuery> QSessionList = new ArrayList<>();
 		
 		for(TQuery tQuery: this._QSessionList){
-			if(tQuery.getClickCount() <= atMostClicks){
+			int clickCnt = tQuery.getClickCount();
+			if(clickCnt <= atMostClicks && clickCnt>0){
 				QSessionList.add(tQuery);
 			}
 		}
@@ -130,6 +131,7 @@ public class MAnalyzer {
 			if(tUrList.size() > maxQSessionSize){
 				for(int k=tUrList.size()-1; k>=maxQSessionSize; k--){
 					tUrList.remove(k);
+					tQuery._gTruthClickSequence.remove(k);
 				}
 			}			
 		}

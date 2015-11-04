@@ -21,12 +21,13 @@ public class TQuery {
 	String _UserID;
 	String _queryText;
 	
+	
 	ArrayList<TUrl> _urlList;
+	public ArrayList<Boolean> _gTruthClickSequence;
+	
 	//the likelihood of being observed
 	double _sessionPro;
 	
-	//
-	ArrayList<Boolean> _gTruthClickSequence;
 	//without marginal concept, just the relevance based utility
 	ArrayList<Double>  _gTruthBasedReleValList;
 	//for marginal utility based cumulative utility

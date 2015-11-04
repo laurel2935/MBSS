@@ -1033,37 +1033,6 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		return sessionProb;		
 	}
 	
-	@Override
-	public double getTestCorpusProb(boolean onlyClicks, boolean uniformCmp){	
-		System.out.println();
-		System.out.println("TrainNum: "+_trainNum+"\tTestNum: "+_testNum);
-		
-		int unseenQSessionCnt = 0;
-		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
-			TQuery tQuery = this._QSessionList.get(k);			
-			if(includeUnseeUrl(tQuery)){
-				unseenQSessionCnt++;
-			}
-		}		
-		System.out.println("seenInTest: "+_seenInTest.size()+"\tunseenInTest: "+_unseenInTest.size()+"\tratio: "+(_unseenInTest.size()*1.0/(_seenInTest.size()+_unseenInTest.size())));
-		System.out.println("UnseenQuerySession: "+unseenQSessionCnt+"\tTestQuerySession: "+_testNum+"\tUnseenRation: "+(unseenQSessionCnt*1.0/_testNum));
-		
-		double corpusLikelihood = 0.0;
-		
-		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
-			TQuery tQuery = this._QSessionList.get(k);
-			
-			if(skipQuerySession(tQuery, uniformCmp)){
-				continue;
-			}
-			
-			double session = getSessionProb(tQuery, onlyClicks);
-			corpusLikelihood += Math.log(session);
-		}
-		//the higher the better
-		return corpusLikelihood;		
-	}
-		
 	protected void  name() {
 		
 	}
@@ -1336,7 +1305,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		int maxQSessionSize = 10;
 		int minQFre = 2;
 
-		Mode mode = Mode.NaiveRele;
+		Mode mode = Mode.Original;
 		
 		boolean useFeature;
 		

@@ -367,6 +367,28 @@ public abstract class FeatureModel extends MAnalyzer {
 	protected abstract void estimateParas();
 		
 	protected abstract void getStats();
+	
+	public double getTestCorpusProb(boolean onlyClicks, boolean uniformCmp){
+		getSeenVsUnseenInfor();
+		
+		double corpusLikelihood = 0.0;
+		
+		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);
+			
+			if(skipQuerySession(tQuery, uniformCmp)){
+				continue;
+			}
+			
+			double session = getSessionProb(tQuery, onlyClicks);
+			corpusLikelihood += Math.log(session);
+		}
+		//the higher the better
+		return corpusLikelihood;		
+	}
+	
+	public abstract double getSessionProb(TQuery tQuery, boolean onlyClicks);
+	
 	//
 	protected void getSeenQUPairs(){
 		this._seenQUPairSet = new HashSet<>();		
@@ -381,6 +403,21 @@ public abstract class FeatureModel extends MAnalyzer {
 		}
 	}
 	////
+	protected void getSeenVsUnseenInfor() {
+		System.out.println();
+		System.out.println("TrainNum: "+_trainNum+"\tTestNum: "+_testNum);
+		
+		int unseenQSessionCnt = 0;
+		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
+			TQuery tQuery = this._QSessionList.get(k);			
+			if(includeUnseeUrl(tQuery)){
+				unseenQSessionCnt++;
+			}
+		}		
+		System.out.println("seenInTest: "+_seenInTest.size()+"\tunseenInTest: "+_unseenInTest.size()+"\tratio: "+(_unseenInTest.size()*1.0/(_seenInTest.size()+_unseenInTest.size())));
+		System.out.println("UnseenQuerySession: "+unseenQSessionCnt+"\tTestQuerySession: "+_testNum+"\tUnseenRation: "+(unseenQSessionCnt*1.0/_testNum));
+	}
+	
 	protected boolean skipQuerySession(TQuery tQuery, boolean uniformaComparison){
 		boolean hasUnseenQuery = includeUnseeUrl(tQuery);
 		

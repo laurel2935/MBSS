@@ -2,12 +2,15 @@ package org.archive.rms.clickmodels;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Random;
 
 import org.archive.rms.advanced.MAnalyzer;
+import org.archive.rms.advanced.USMFrame;
+import org.archive.rms.advanced.USMFrame.FunctionType;
+import org.archive.rms.clickmodels.T_Evaluation.Mode;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
-
 
 /**
  * 
@@ -15,7 +18,7 @@ import org.archive.rms.data.TUrl;
  * "Chapelle, Olivier, and Ya Zhang. "A dynamic bayesian network click model for web search ranking." WWW. ACM, 2009."
  */
 
-public class T_DBN extends MAnalyzer implements T_Evaluation {
+public class T_DBN extends FeatureModel implements T_Evaluation {
 
 	class _param{
 		//attractiveness
@@ -41,39 +44,42 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 	HashMap<String, _param> m_urlTable;//query-document specific parameters
 	Random m_rand;
 	
-	public T_DBN(int maxQSessionSize, double testRatio, double gamma, double alpha_a, double beta_a, double alpha_s, double beta_s, int minQFre){
-		super(minQFre, testRatio, false, maxQSessionSize);
+	public T_DBN(int maxQSessionSize, Mode mode, boolean useFeature, int minQFre, double testRatio,
+			double gamma, double alpha_a, double beta_a, double alpha_s, double beta_s){
+		//
+		//super(minQFre, testRatio, useFeature, maxQSessionSize);
+		super(minQFre, mode, useFeature, testRatio, maxQSessionSize);
 		
-		m_gamma = gamma;
-		
+		m_gamma = gamma;		
 		//beta distribution w.r.t. event:A
 		m_alpha_a = alpha_a;
-		m_beta_a = beta_a;
-		
+		m_beta_a = beta_a;		
 		//beta distribution w.r.t. event:S
 		m_alpha_s = alpha_s;
 		m_beta_s = beta_s;
-		
+		//
 		m_rand = new Random();
 		m_urlTable = new HashMap<String, _param>();
 	}
 	
-	_param lookupURL(String query, String URL, boolean add4miss){
-		String key = query + "@" + URL;
+	_param lookupURL(TQuery tQuery, TUrl tUrl, boolean add4miss){
+		//String key = query + "@" + URL;
+		String key = getKey(tQuery, tUrl);
+		
 		if (m_urlTable.containsKey(key))
 			return m_urlTable.get(key);
 		else if (add4miss){
 			_param p = new _param();
 			m_urlTable.put(key, p);
 			return p;
-		}
-		else 
+		}else{
 			return null;
+		}			
 	}
 	
 	public void EM(int iter, double tol){
-		//
-		double[][] alpha = new double[11][2], beta = new double[11][2];//treiler for forward and backward
+		//treiler for forward and backward
+		double[][] alpha = new double[11][2], beta = new double[11][2];
 		
 		alpha[0][0] = 0.0; alpha[0][1] = 1.0; 
 		
@@ -83,9 +89,9 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 		
 		while(step++<iter && diff>tol){
 			//E-step
-			for(TQuery tQuery : _QSessionList){
-				String qText = tQuery.getQueryText();
-				//uSize = query.m_urls.size();
+			//training parts
+			for(int qNum=1; qNum<=this._trainNum; qNum++){
+				TQuery tQuery = this._QSessionList.get(qNum-1);
 				ArrayList<TUrl> urlList = tQuery.getUrlList();
 				
 				uSize = urlList.size();
@@ -99,7 +105,7 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 					TUrl url = urlList.get(i);
 					c = url.getGTruthClick()>0?1:0;
 					//p = lookupURL(query.m_query, query.m_urls.get(i).m_URL, true);
-					p = lookupURL(qText, url.getDocNo(), true);
+					p = lookupURL(tQuery, url, true);
 					
 					if (c==0){
 						//corresponds to equation page_10 in the paper appendix: e.g., one can easily derive the recursion formula:
@@ -121,7 +127,7 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 					//c = query.m_urls.get(i-1).m_click>0?1:0;
 					c = url.getGTruthClick()>0?1:0;
 					//p = lookupURL(query.m_query, query.m_urls.get(i-1).m_URL, true);
-					p = lookupURL(qText, url.getDocNo(), true);
+					p = lookupURL(tQuery, url, true);
 					
 					beta[i-1][0] = beta[i][0]*(1-c);
 					if (c==0)
@@ -137,13 +143,13 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 					//c = url.m_click>0?1:0;
 					c = url.getGTruthClick()>0?1:0;
 					//p = lookupURL(query.m_query, url.m_URL, true);
-					p = lookupURL(qText, url.getDocNo(), true);
+					p = lookupURL(tQuery, url, true);
 					
 					p.m_ss_a[1] += 1;	
 					
 					if (c>0){
 						p.m_ss_a[0] += 1;
-						//	
+						//
 						p.m_ss_s[0] += alpha[i+1][0] * beta[i+1][0] / beta[0][1] / ((1-m_gamma)/p.m_s + m_gamma);
 						p.m_ss_s[1] += 1; 
 					} else {
@@ -181,6 +187,20 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 				para.m_ss_s[0] = 0; para.m_ss_s[1] = 0;
 			}
 			
+			////
+			///*
+		    if(!_mode.equals(Mode.Original)){
+		    	try {
+		    		optimize(40);
+				} catch (Exception e) {
+					e.printStackTrace();
+					//System.exit(0);
+				}
+		    	//
+		    	updateAlpha();
+		    }
+		    //*/
+			
 			diff /= m_urlTable.size();
 			System.out.println("[Info]EM step " + step + ", diff:" + diff);
 		}
@@ -190,34 +210,144 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 		
 	@Override
 	public double getClickProb(TQuery tQuery, TUrl tUrl) {
-		_param para = lookupURL(tQuery.getQueryText(), tUrl.getDocNo(), false);
+		_param para = lookupURL(tQuery, tUrl, false);
 		if (para!=null)//existing one
 			return 2 * para.m_a * para.m_s;
 		else//totally a new one
 			return 2 * (m_alpha_a-1)/(m_alpha_a+m_beta_a-2) * (m_alpha_s-1)/(m_alpha_s+m_beta_s-2) + m_rand.nextDouble()/10;
 	}
-	
-	
-	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
-		//due to the uncertainty of "2*"
-		return 0.0;
-	}
-	
-	@Override
-	public double getTestCorpusProb(boolean onlyClicks, boolean uniformaCmp){
-		double corpusLikelihood = 0.0;
 		
-		for(int k=this._testNum; k<this._QSessionList.size(); k++){
-			TQuery tQuery = this._QSessionList.get(k);
-			double session = getSessionProb(tQuery, onlyClicks);
-			corpusLikelihood += Math.log(session);
+	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
+		double sessionProb = 1.0;
+		
+		ArrayList<TUrl> urlList = tQuery.getUrlList();
+		
+		//starts from the final click
+		int rFinalClick = tQuery.getLastClickPosition();
+		if(rFinalClick-1 < 0){
+			System.out.println(tQuery.getClickCount());
+			System.out.println(tQuery.getGTruthClickSequence());
+			for(TUrl tUrl: tQuery.getUrlList()){
+				System.out.print(tUrl.getGTruthClick()+" ");
+			}
+			System.exit(0);
 		}
-		//the higher the better
-		return corpusLikelihood;		
+		TUrl finallyClickedUrl = urlList.get(rFinalClick-1);
+		_param finalParam = lookupURL(tQuery, finallyClickedUrl, false);		
+		sessionProb *= (finalParam.m_a*finalParam.m_s);
+				
+		for(int r=rFinalClick-1; r>=1; r--){
+			//without the 1sr position
+			if(r>1){
+				sessionProb *= m_gamma;
+			}
+			//
+			TUrl tUrl = urlList.get(r-1);
+			_param param = lookupURL(tQuery, tUrl, false);
+			
+			if(tUrl.getGTruthClick() > 0){
+				sessionProb *= (param.m_a*(1-param.m_s));
+			}else{
+				sessionProb *= ((1-param.m_a)*(1-param.m_s));
+			}			
+		}
+		
+		return sessionProb;
 	}
 	
-	public void train(){}
+	public void train(){
+		initialSteps(false);
+		estimateParas();
+	}
 	
+	////
+	protected double calMinObjFunctionValue_NaiveRele(){
+		double objVal = 0.0;
+		
+		for(int i=0; i<this._trainNum; i++){
+			TQuery tQuery = this._QSessionList.get(i);
+			
+			for(TUrl tUrl: tQuery.getUrlList()){
+				_param param = lookupURL(tQuery, tUrl, false);
+				
+				double postRelePro = param.m_a;				
+				double feaRelePro = tUrl.calRelePro(_naiveReleWeights);
+				
+				double var = Math.pow(feaRelePro-postRelePro, 2);
+				
+				objVal += var;
+			}
+		}
+			
+		return objVal;
+	}
+	protected double calMinObjFunctionValue_MarginalRele(){
+		double objVal = 0.0;
+		return objVal;
+	}
+	protected void calFunctionGradient_NaiveRele(double[] g){	
+		for(int i=0; i<this._trainNum; i++){
+			TQuery tQuery = this._QSessionList.get(i);			
+			
+			for(TUrl tUrl: tQuery.getUrlList()){						
+				_param param = lookupURL(tQuery, tUrl, false);
+				
+				double postRelePro = param.m_a;								
+				double feaRelePro = tUrl.calRelePro(_naiveReleWeights);
+				//1
+				double firstPart = 2*(feaRelePro-postRelePro);
+				//2
+				double releVal = USMFrame.calFunctionVal(tUrl.getReleFeatures(), _naiveReleWeights, FunctionType.LINEAR);
+				double expVal = Math.exp(releVal);
+				double secondPart = expVal/Math.pow((1+expVal), 2);
+				
+				//traverse 3
+				double [] naiveReleFeatures = tUrl.getReleFeatures();
+				for(int k=0; k<naiveReleFeatures.length; k++){
+					g[k] += (firstPart*secondPart*naiveReleFeatures[k]);
+				}				
+			}
+		}
+	}
+	protected void calFunctionGradient_MarginalRele(double[] g){
+		
+	}
+	protected void updateAlpha_NaiveRele(){
+		//avoid duplicate update
+		HashSet<String> releKeySet = new HashSet<>();
+		
+		for(int i=0; i<this._trainNum; i++){
+			TQuery tQuery = this._QSessionList.get(i);			
+			
+			for(TUrl tUrl: tQuery.getUrlList()){						
+				String key = getKey(tQuery, tUrl);
+				
+				if(releKeySet.contains(key)){
+					continue;
+				}
+				
+				double feaRelePro = tUrl.calRelePro(_naiveReleWeights);
+				//double emValue = m_alpha.get(key);
+				/*
+				if(Math.abs(emValue-feaRelePro) > 0.5){
+					System.out.println("before:\t"+emValue);
+					System.out.println("after:\t"+feaRelePro);
+				}
+				*/
+				_param param = lookupURL(tQuery, tUrl, false);
+				param.m_a = feaRelePro;
+				
+				releKeySet.add(key);
+			}
+		}
+	}
+	protected void updateAlpha_MarginalRele(){}
+	
+	protected void getStats(){}
+	
+	protected void estimateParas() {
+		EM(40, 1e-8);
+	}
 //	public static void main(String[] args) {
 //		if (args.length!=3){
 //			System.err.println("[Usage]DBN trainset testset results");
@@ -235,7 +365,7 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 //		dbn.set4Pred();
 //		dbn.Save4MLR("Data/Vectors/logs_dpred", "Data/Heads/fv_head.dat", true, false);
 //	}
-	
+	/*
 	public static void main(String[] args) {
 		if (args[0].equals("dtest") && args.length!=6){
 			System.err.println("[Usage]dtest trainset maxUser testset results isBucket");
@@ -244,7 +374,7 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 			System.err.println("[Usage]dpred trainset maxUser testset maxUser fv_stat resultfile isBucket asFeature");
 			return;
 		}
-		/*
+		
 		T_DBN dbn = new T_DBN(0, 0.75, 2, 2, 2, 2);
 		dbn.LoadLogs(args[1], Integer.valueOf(args[2]));
 		dbn.EM(10, 1e-3);//have to be trained anyway
@@ -260,6 +390,34 @@ public class T_DBN extends MAnalyzer implements T_Evaluation {
 			dbn.set4Pred(Boolean.valueOf(args[8]));
 			dbn.Save4MLR(args[6], Boolean.valueOf(args[7]));
 		}
-		*/
+		
+	}
+	*/
+	
+	public static void main(String[] args) {
+		//1
+		double gamma = 0.75;
+		double alpha_a; double beta_a; double alpha_s; double beta_s;
+		alpha_a = beta_a = alpha_s = beta_s = 2;		
+		
+		double testRatio = 0.25;
+		int maxQSessionSize = 10;
+		int minQFre = 2;
+
+		Mode mode = Mode.NaiveRele;
+		
+		boolean useFeature;
+		
+		if(mode.equals(Mode.Original)){
+			useFeature = false;
+		}else{
+			useFeature = true;
+		}
+		// due to the fact of serious sparcity problem!!!!, is it ok to be used as a baseline?
+		T_DBN DBN = new T_DBN(maxQSessionSize, mode, useFeature, minQFre, testRatio,
+				gamma, alpha_a, beta_a, alpha_s, beta_s);
+		
+		DBN.train();
+		System.out.println(DBN.getTestCorpusProb(false, true));
 	}
 }

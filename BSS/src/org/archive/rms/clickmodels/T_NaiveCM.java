@@ -356,7 +356,7 @@ public class T_NaiveCM extends FeatureModel implements T_Evaluation {
 	}
 	
 	@Override
-	public double getTestCorpusProb(boolean onlyClicks){
+	public double getTestCorpusProb(boolean onlyClicks, boolean uniformaComparison){
 		double corpusLikelihood = 0.0;
 		
 		for(int k=this._testNum; k<this._QSessionList.size(); k++){
@@ -435,6 +435,6 @@ public class T_NaiveCM extends FeatureModel implements T_Evaluation {
 		// due to the fact of serious sparcity problem!!!!, is it ok to be used as a baseline?
 		T_NaiveCM t_NaiveCM = new T_NaiveCM(minQFre, mode, useFeature, testRatio, maxQSessionSize);
 		t_NaiveCM.train();
-		System.out.println(t_NaiveCM.getTestCorpusProb(false));
+		System.out.println(t_NaiveCM.getTestCorpusProb(false, true));
 	}
 }
