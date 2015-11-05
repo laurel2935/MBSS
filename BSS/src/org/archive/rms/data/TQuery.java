@@ -8,6 +8,7 @@ import org.archive.rms.advanced.MAnalyzer;
 import org.archive.rms.advanced.MClickModel;
 import org.archive.rms.advanced.USMFrame;
 import org.archive.rms.advanced.USMFrame.FunctionType;
+import org.archive.rms.clickmodels.FeatureModel.MarFeaVersion;
 import org.ejml.simple.SimpleMatrix;
 
 
@@ -178,6 +179,9 @@ public class TQuery {
 		this._gTruthBasedMarFeatureList = new ArrayList<>();
 		
 		int firstC = getFirstClickPosition();
+		for(int r=1; r<=firstC; r++){
+			this._gTruthBasedMarFeatureList.add(null);
+		}
 		
 		if(plusContextInfor){
 			for(int rank=firstC+1; rank<=_urlList.size(); rank++){
@@ -951,18 +955,23 @@ public class TQuery {
 		return marReleVal;
 	}
 	
-	public double calMarRelePro(int rankPosition, double [] mar_weights){
-		ArrayList<Double> marFeatureList = this._gTruthBasedMarFeatureList.get(rankPosition-1);
-		double [] marFeatureArray = MAnalyzer.toDArray(marFeatureList);
+	public double calMarRelePro(int rankPosition, double [] mar_weights, MarFeaVersion version){
+		double [] marFeatureArray;
+		if(version.equals(MarFeaVersion.V1)){
+			ArrayList<Double> marFeatureList = this._gTruthBasedMarFeatureList.get(rankPosition-1);
+			marFeatureArray = MAnalyzer.toDArray(marFeatureList);
+		}else{
+			marFeatureArray = getMarFeature_Join(rankPosition);
+		}		
 		
 		double marReleVal = USMFrame.calFunctionVal(marFeatureArray, mar_weights, FunctionType.LINEAR);
 		double marRelePro = USMFrame.logistic(marReleVal);
-		return marRelePro;	
+		return marRelePro;
 	}
 	
 	
 	//
-	public void marNormalize(double[] marMean, double[] marStdVar){
+	public void marNormalize_OnlyClicks(double[] marMean, double[] marStdVar){
 		ArrayList<ArrayList<Double>> new_gTruthBasedMarFeatureList = new ArrayList<>();
 		
 		int firstC = getFirstClickPosition();
@@ -994,6 +1003,36 @@ public class TQuery {
 			}else {
 				new_gTruthBasedMarFeatureList.add(null);
 			}
+		}
+		
+		this._gTruthBasedMarFeatureList = new_gTruthBasedMarFeatureList;
+	}
+	
+	public void marNormalize_Total(double[] marMean, double[] marStdVar){
+		ArrayList<ArrayList<Double>> new_gTruthBasedMarFeatureList = new ArrayList<>();
+		
+		int firstC = getFirstClickPosition();
+		for(int r=1; r<=firstC; r++){
+			new_gTruthBasedMarFeatureList.add(null);
+		}
+		
+		for(int rank=firstC+1; rank<=_urlList.size(); rank++){			
+			ArrayList<Double> new_marFeatureVec = new ArrayList<>();			
+			ArrayList<Double> old_marFeatureVec = this._gTruthBasedMarFeatureList.get(rank-1);
+			
+			for(int i=0; i<old_marFeatureVec.size(); i++){
+				double old_value = old_marFeatureVec.get(i);
+				
+				double new_value;
+				if(0 != marStdVar[i]){
+					new_value = (old_value-marMean[i])/marStdVar[i];
+				}else{
+					new_value = 0d;
+				}					
+				new_marFeatureVec.add(new_value);
+			}
+			
+			new_gTruthBasedMarFeatureList.add(new_marFeatureVec);
 		}
 		
 		this._gTruthBasedMarFeatureList = new_gTruthBasedMarFeatureList;
@@ -1114,7 +1153,7 @@ public class TQuery {
 	public ArrayList<Double> getCumuVals(){
 		return this._gTruthBasedCumuUtilityList;
 	}	
-	//
+	//combine rele and marginal rele features
 	public double [] getMarFeature_Join(int cRank){
 		ArrayList<Double> marFeatureVec = this._gTruthBasedMarFeatureList.get(cRank-1);
 		

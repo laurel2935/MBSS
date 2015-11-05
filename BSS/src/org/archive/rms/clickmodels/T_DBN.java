@@ -5,10 +5,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Random;
 
-import org.archive.rms.advanced.MAnalyzer;
 import org.archive.rms.advanced.USMFrame;
 import org.archive.rms.advanced.USMFrame.FunctionType;
-import org.archive.rms.clickmodels.T_Evaluation.Mode;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 
@@ -43,6 +41,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 	
 	HashMap<String, _param> m_urlTable;//query-document specific parameters
 	Random m_rand;
+	private static FunctionType _fType = FunctionType.LINEAR;
 	
 	public T_DBN(int maxQSessionSize, Mode mode, boolean useFeature, int minQFre, double testRatio,
 			double gamma, double alpha_a, double beta_a, double alpha_s, double beta_s){
@@ -62,7 +61,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		m_urlTable = new HashMap<String, _param>();
 	}
 	
-	_param lookupURL(TQuery tQuery, TUrl tUrl, boolean add4miss){
+	_param lookupURL(TQuery tQuery, TUrl tUrl, boolean add4miss, boolean testPhase){
 		//String key = query + "@" + URL;
 		String key = getKey(tQuery, tUrl);
 		
@@ -72,7 +71,27 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 			_param p = new _param();
 			m_urlTable.put(key, p);
 			return p;
+		}else if(testPhase){
+			if(!_mode.equals(Mode.Original)){
+				_param p = new _param();
+				
+				if(_mode.equals(Mode.NaiveRele)){
+					double alphaV = tUrl.calRelePro(_naiveReleWeights);
+					p.m_a = alphaV;
+					m_urlTable.put(key, p);
+					return p;
+				}else{
+					System.out.println("Unimplemented error w.r.t. mar!");
+					System.exit(0);
+					return null;
+				}
+			}else{
+				System.out.println("Unconsistent mode for test error!");
+				System.exit(0);
+				return null;
+			}
 		}else{
+			System.out.println("Unseen query-url pair search error!");
 			return null;
 		}			
 	}
@@ -105,7 +124,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 					TUrl url = urlList.get(i);
 					c = url.getGTruthClick()>0?1:0;
 					//p = lookupURL(query.m_query, query.m_urls.get(i).m_URL, true);
-					p = lookupURL(tQuery, url, true);
+					p = lookupURL(tQuery, url, true, false);
 					
 					if (c==0){
 						//corresponds to equation page_10 in the paper appendix: e.g., one can easily derive the recursion formula:
@@ -127,7 +146,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 					//c = query.m_urls.get(i-1).m_click>0?1:0;
 					c = url.getGTruthClick()>0?1:0;
 					//p = lookupURL(query.m_query, query.m_urls.get(i-1).m_URL, true);
-					p = lookupURL(tQuery, url, true);
+					p = lookupURL(tQuery, url, true, false);
 					
 					beta[i-1][0] = beta[i][0]*(1-c);
 					if (c==0)
@@ -143,7 +162,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 					//c = url.m_click>0?1:0;
 					c = url.getGTruthClick()>0?1:0;
 					//p = lookupURL(query.m_query, url.m_URL, true);
-					p = lookupURL(tQuery, url, true);
+					p = lookupURL(tQuery, url, true, false);
 					
 					p.m_ss_a[1] += 1;	
 					
@@ -201,16 +220,22 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		    }
 		    //*/
 			
+		    //parameter size
 			diff /= m_urlTable.size();
+			
 			System.out.println("[Info]EM step " + step + ", diff:" + diff);
 		}
 		
 		System.out.println("[Info]Processed " + m_urlTable.size() + " (q,u) pairs...");
 	}
 		
+	public void EM_MarRele(int iter, double tol){
+		
+	}
+	
 	@Override
 	public double getClickProb(TQuery tQuery, TUrl tUrl) {
-		_param para = lookupURL(tQuery, tUrl, false);
+		_param para = lookupURL(tQuery, tUrl, false, true);
 		if (para!=null)//existing one
 			return 2 * para.m_a * para.m_s;
 		else//totally a new one
@@ -233,7 +258,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 			System.exit(0);
 		}
 		TUrl finallyClickedUrl = urlList.get(rFinalClick-1);
-		_param finalParam = lookupURL(tQuery, finallyClickedUrl, false);		
+		_param finalParam = lookupURL(tQuery, finallyClickedUrl, false, true);		
 		sessionProb *= (finalParam.m_a*finalParam.m_s);
 				
 		for(int r=rFinalClick-1; r>=1; r--){
@@ -243,7 +268,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 			}
 			//
 			TUrl tUrl = urlList.get(r-1);
-			_param param = lookupURL(tQuery, tUrl, false);
+			_param param = lookupURL(tQuery, tUrl, false, true);
 			
 			if(tUrl.getGTruthClick() > 0){
 				sessionProb *= (param.m_a*(1-param.m_s));
@@ -254,6 +279,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		
 		return sessionProb;
 	}
+
 	
 	public void train(){
 		initialSteps(false);
@@ -268,7 +294,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 			TQuery tQuery = this._QSessionList.get(i);
 			
 			for(TUrl tUrl: tQuery.getUrlList()){
-				_param param = lookupURL(tQuery, tUrl, false);
+				_param param = lookupURL(tQuery, tUrl, false, false);
 				
 				double postRelePro = param.m_a;				
 				double feaRelePro = tUrl.calRelePro(_naiveReleWeights);
@@ -282,22 +308,21 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		return objVal;
 	}
 	protected double calMinObjFunctionValue_MarginalRele(){
-		double objVal = 0.0;
-		return objVal;
+		return Double.NaN;
 	}
 	protected void calFunctionGradient_NaiveRele(double[] g){	
 		for(int i=0; i<this._trainNum; i++){
 			TQuery tQuery = this._QSessionList.get(i);			
 			
 			for(TUrl tUrl: tQuery.getUrlList()){						
-				_param param = lookupURL(tQuery, tUrl, false);
+				_param param = lookupURL(tQuery, tUrl, false, false);
 				
 				double postRelePro = param.m_a;								
 				double feaRelePro = tUrl.calRelePro(_naiveReleWeights);
 				//1
 				double firstPart = 2*(feaRelePro-postRelePro);
 				//2
-				double releVal = USMFrame.calFunctionVal(tUrl.getReleFeatures(), _naiveReleWeights, FunctionType.LINEAR);
+				double releVal = USMFrame.calFunctionVal(tUrl.getReleFeatures(), _naiveReleWeights, getFunctionType());
 				double expVal = Math.exp(releVal);
 				double secondPart = expVal/Math.pow((1+expVal), 2);
 				
@@ -334,7 +359,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 					System.out.println("after:\t"+feaRelePro);
 				}
 				*/
-				_param param = lookupURL(tQuery, tUrl, false);
+				_param param = lookupURL(tQuery, tUrl, false, false);
 				param.m_a = feaRelePro;
 				
 				releKeySet.add(key);
@@ -343,7 +368,14 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 	}
 	protected void updateAlpha_MarginalRele(){}
 	
-	protected void getStats(){}
+	protected void getStats_Static(){}
+	protected void getStats_MarginalRele(){}
+	public double getSessionProb_MarginalRele(TQuery tQuery){
+		return Double.NaN;
+	}
+	protected FunctionType getFunctionType() {
+		return _fType;
+	}
 	
 	protected void estimateParas() {
 		EM(40, 1e-8);
@@ -413,11 +445,13 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		}else{
 			useFeature = true;
 		}
+		
 		// due to the fact of serious sparcity problem!!!!, is it ok to be used as a baseline?
 		T_DBN DBN = new T_DBN(maxQSessionSize, mode, useFeature, minQFre, testRatio,
 				gamma, alpha_a, beta_a, alpha_s, beta_s);
 		
 		DBN.train();
+		
 		System.out.println(DBN.getTestCorpusProb(false, true));
 	}
 }

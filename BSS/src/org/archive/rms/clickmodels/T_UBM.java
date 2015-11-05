@@ -21,8 +21,6 @@ import org.archive.rms.advanced.USMFrame.FunctionType;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 
-
-
 /**
  * 
  * Implementation and extension of User Browsing Modeling proposed in 
@@ -33,7 +31,6 @@ import org.archive.rms.data.TUrl;
  * 
  * !a possible shortcoming is: it has pay for the cost of estimating the relevance or marginal utility below the last click.
  */
-
 
 public class T_UBM extends FeatureModel implements T_Evaluation {
 	
@@ -93,8 +90,11 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	//i.e., query-session size
 	int _maxSize;
 	
+	private static FunctionType _fType = FunctionType.LINEAR;
 	
-	T_UBM(int minQFre, Mode mode, boolean useFeature, double testRatio, double alpha, double gamma, double mu, int maxQSessionSize){
+	T_UBM(int minQFre, Mode mode, int maxQSessionSize, boolean useFeature, double testRatio,
+			double alpha, double gamma, double mu){
+		
 		super(minQFre, mode, useFeature, testRatio, maxQSessionSize);		
 		
 		m_alpha_init = alpha;
@@ -102,6 +102,9 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		m_mu_init = mu;	
 	}
 	
+	/**
+	 * statistics of click & skip events w.r.t. a pair of query-url
+	 * **/
 	_stat getStat_original(String query, String url, boolean add4miss, int size){
 		//the problem: the same query and url, but different sizes of result lists
 		String key = query + "@" + url;
@@ -145,7 +148,69 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		}
 	}
 	//
-	protected void getStats_Mar(){
+	protected void getStats_Static(){
+		int maxSize = 0;
+		//initialize structures
+		m_alpha = new HashMap<String, Double>();
+		m_mu = new HashMap<String, _pair>();
+		m_uq_stat = new HashMap<String, _stat>();
+		
+		for(int qNum=1; qNum<=this._trainNum; qNum++){
+			TQuery tQuery = this._QSessionList.get(qNum-1);
+			String qText = tQuery.getQueryText();
+			//if (query.m_query.contains("@"))
+			//query.m_query = query.m_query.replace("@", "_");
+			
+			int lastclick = 0;
+			ArrayList<TUrl> urlList = tQuery.getUrlList();
+			
+			int size = urlList.size();	
+			if(size > maxSize){
+				maxSize = size;
+			}			
+			
+			for(int i=0; i<urlList.size(); i++){
+				getMu(qText, true);//register the query
+				
+				TUrl tUrl = urlList.get(i);
+				
+				//initialize parameters
+				//getAlpha(qText, url.getDocNo(), true);
+				getAlpha_Ext(tQuery, tUrl, true, _mode, true, false);
+				
+				//get statistics
+				//_stat st = getStat(qText, tUrl.getDocNo(), true, size);
+				_stat st = getStat_ext(tQuery, tUrl, true);
+				
+				int rankPos = tUrl.getRankPosition();
+				if (tUrl.getGTruthClick()>0){
+					st.m_click_rd[rankPos-1][rankPos-lastclick] ++;						
+					st.m_click ++;
+					
+					lastclick = rankPos;//update the last click
+				}
+				else{
+					st.m_skip ++;
+					//System.out.println("size:\t"+size);
+					//System.out.println(st.m_skip_rd.length);
+					//System.out.println(rankPos-1);
+					st.m_skip_rd[rankPos-1][rankPos-lastclick] ++;
+				}
+			}
+		}
+		
+		//initialize gamma
+		m_gamma = new double[maxSize][maxSize+1];
+		for(int i=0; i<m_gamma.length; i++)
+			Arrays.fill(m_gamma[i], m_gamma_init);
+		
+		//
+		_maxSize = maxSize;
+		
+		getSeenQUPairs();
+	}
+	//
+	protected void getStats_MarginalRele(){
 		int maxSize_NaiveRele = 0;
 		int maxSize_MarRele = 0;
 		//
@@ -170,25 +235,24 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			for(int r=1; r<=rFirstClick; r++){				
 				TUrl tUrl = urlList.get(r-1);				
 				//initialize parameters
-				getAlpha_Ext(tQuery, tUrl, true, _mode, true);
+				getAlpha_Ext(tQuery, tUrl, true, _mode, true, false);
 				
 				//get statistics
 				_stat rdStat_NaiveRele = getStat_ext(tQuery, tUrl, true);
 				
-				int rPosition = tUrl.getRankPosition();
 				if (tUrl.getGTruthClick()>0){
-					rdStat_NaiveRele.m_click_rd[rPosition-1][rPosition-rLastclick_Naive] ++;						
+					rdStat_NaiveRele.m_click_rd[r-1][r-rLastclick_Naive] ++;						
 					rdStat_NaiveRele.m_click ++;
 					//update the last click
-					rLastclick_Naive = rPosition;
+					rLastclick_Naive = r;
 				}else{
 					rdStat_NaiveRele.m_skip ++;
-					rdStat_NaiveRele.m_skip_rd[rPosition-1][rPosition-rLastclick_Naive] ++;
+					rdStat_NaiveRele.m_skip_rd[r-1][r-rLastclick_Naive] ++;
 				}
 			}
 			
 			//part-2
-			int rLastclick_Mar = rFirstClick+1;
+			int rLastclick_Mar = rFirstClick;
 			int remainingSize = urlList.size()-rFirstClick;
 			if(remainingSize > maxSize_MarRele){
 				maxSize_MarRele = remainingSize;
@@ -199,15 +263,14 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 				//get statistics
 				_stat rdStat_MarRele = getRDStat_MarRele(tQuery, tUrl, true);
 				
-				int rPosition = tUrl.getRankPosition();
 				if (tUrl.getGTruthClick()>0){
-					rdStat_MarRele.m_click_rd[rPosition-1][rPosition-rLastclick_Mar] ++;						
+					rdStat_MarRele.m_click_rd[r-1][r-rLastclick_Mar] ++;						
 					rdStat_MarRele.m_click ++;
 					//update the last click
-					rLastclick_Mar = rPosition;
+					rLastclick_Mar = r;
 				}else{
 					rdStat_MarRele.m_skip ++;
-					rdStat_MarRele.m_skip_rd[rPosition-1][rPosition-rLastclick_Mar] ++;
+					rdStat_MarRele.m_skip_rd[r-1][r-rLastclick_Mar] ++;
 				}
 			}
 		}
@@ -259,7 +322,9 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		
 		getSeenQUPairs();
 	}
-	//
+	/**
+	 * \alpha that usually represents relevance, attractiveness
+	 * **/
 	double getAlpha_original(String query, String url, boolean add4miss){
 		String key = query + "@" + url;
 		if (m_alpha.containsKey(key))
@@ -272,7 +337,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			return m_alpha_init + m_rand.nextDouble()/10.0;//for non-existing key
 	}
 	//	
-	protected double getAlpha_Ext(TQuery tQuery, TUrl tUrl, boolean add4miss, Mode mode, boolean firstTime){
+	protected double getAlpha_Ext(TQuery tQuery, TUrl tUrl, boolean add4miss, Mode mode, boolean firstTime, boolean test){
 		String key = getKey(tQuery, tUrl);
 		
 		if (m_alpha.containsKey(key))
@@ -290,7 +355,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 					m_alpha.put(key, alphaV);
 					return alphaV;
 				}else if(mode.equals(Mode.MarginalRele)){
-					double alphaV = tQuery.calMarginalRele(tUrl.getRankPosition(), getComponentOfMarReleWeight());
+					double alphaV = tUrl.calRelePro(getComponentOfNaiveReleWeight());
 					m_alpha.put(key, alphaV);
 					return alphaV;
 				}else{
@@ -299,8 +364,22 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 					return Double.NaN;
 				}
 			}			
+		}else if(test){
+			if(mode.equals(Mode.NaiveRele)){
+				double alphaV = tUrl.calRelePro(_naiveReleWeights);
+				m_alpha.put(key, alphaV);
+				return alphaV;
+			}else if(mode.equals(Mode.MarginalRele)){
+				double alphaV = tUrl.calRelePro(getComponentOfNaiveReleWeight());
+				m_alpha.put(key, alphaV);
+				return alphaV;
+			}else{
+				System.out.println("Unconsistent mode for test error!");
+				System.exit(0);
+				return Double.NaN;
+			}
 		}else{
-			System.out.println("Unseen query-url pair error!");
+			System.out.println("Unseen query-url pair search error!");
 			return Double.NaN;
 		}			
 	}
@@ -320,68 +399,9 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			return -1;//for non-existing key
 	}
 	
-	protected void getStats(){
-		int maxSize = 0;
-		//initialize structures
-		m_alpha = new HashMap<String, Double>();
-		m_mu = new HashMap<String, _pair>();
-		m_uq_stat = new HashMap<String, _stat>();
-		
-		for(int qNum=1; qNum<=this._trainNum; qNum++){
-			TQuery tQuery = this._QSessionList.get(qNum-1);
-			String qText = tQuery.getQueryText();
-			//if (query.m_query.contains("@"))
-			//query.m_query = query.m_query.replace("@", "_");
-			
-			int lastclick = 0;
-			ArrayList<TUrl> urlList = tQuery.getUrlList();
-			
-			int size = urlList.size();	
-			if(size > maxSize){
-				maxSize = size;
-			}			
-			
-			for(int i=0; i<urlList.size(); i++){
-				getMu(qText, true);//register the query
-				
-				TUrl tUrl = urlList.get(i);
-				
-				//initialize parameters
-				//getAlpha(qText, url.getDocNo(), true);
-				getAlpha_Ext(tQuery, tUrl, true, _mode, true);
-				
-				//get statistics
-				//_stat st = getStat(qText, tUrl.getDocNo(), true, size);
-				_stat st = getStat_ext(tQuery, tUrl, true);
-				
-				int rankPos = tUrl.getRankPosition();
-				if (tUrl.getGTruthClick()>0){
-					st.m_click_rd[rankPos-1][rankPos-lastclick] ++;						
-					st.m_click ++;
-					
-					lastclick = rankPos;//update the last click
-				}
-				else{
-					st.m_skip ++;
-					//System.out.println("size:\t"+size);
-					//System.out.println(st.m_skip_rd.length);
-					//System.out.println(rankPos-1);
-					st.m_skip_rd[rankPos-1][rankPos-lastclick] ++;
-				}
-			}
-		}
-		
-		//initialize gamma
-		m_gamma = new double[maxSize][maxSize+1];
-		for(int i=0; i<m_gamma.length; i++)
-			Arrays.fill(m_gamma[i], m_gamma_init);
-		
-		//
-		_maxSize = maxSize;
-		
-		getSeenQUPairs();
-	}
-		
+	/**
+	 * EM for estimating parameters
+	 * **/		
 	public void EM_Multiple(int iter, double tol){				
 		Iterator<Map.Entry<String, Double>> it;
 		Iterator<Map.Entry<String, _pair>> mu_iter;
@@ -615,15 +635,25 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	        	for(int j=1; j<=i+1; j++){
 	        		if(gamma_sta[i][j] > 0){
 	        			gamma = gamma_new[i][j]/gamma_sta[i][j];
+	        			//ad-hoc restriction
+	        			if(1 == gamma){
+	        				gamma = 0.95;
+	        			}
 	        		}else{
 	        			gamma = m_gamma_init;
 	        		}
-	        		
+	        		//double old = m_gamma[i][j];
 	        		m_gamma[i][j] = gamma;
 	        		
-	        		diff += (gamma-m_gamma[i][j])*(gamma-m_gamma[i][j]);	        		
+	        		diff += (gamma-m_gamma[i][j])*(gamma-m_gamma[i][j]);	 
+	        		
 	        		if (Double.isNaN(diff)){
 	        			System.err.println("[ERROR]Encounter NaN for updating gamma!");
+//	        			System.out.println(gamma_new[i][j]);
+//	        			System.out.println(gamma_sta[i][j]);
+//	        			System.out.println(m_gamma_init);
+//	        			System.out.println("new gamma: "+gamma);
+//	        			System.out.println("old gamma: "+old);
 	        		}			        	
 	        	}
 		    }
@@ -659,6 +689,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		        }
 		    }
 		    
+		    //better than one-time
 		    ///*
 		    if(!_mode.equals(Mode.Original)){
 		    	try {
@@ -671,9 +702,9 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		    	updateAlpha();
 		    }
 		    //*/
-	
 		    
-		    diff /= (m_alpha.size() + 45 + m_mu.size());//parameter size
+		  //parameter size
+		    diff /= (m_alpha.size() + 45);
 		    
 		    System.out.println("[Info]EM step " + step + ", diff:" + diff);
 		}	
@@ -695,91 +726,17 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		*/
 	}
 	
-	protected void optimize(int maxIter, double[][] gamma_opt) throws ExceptionWithIflag{
-		
-		LBFGS _lbfgsOptimizer = new LBFGS();
-		
-		int[] iprint = {-1, 0}, iflag = {0};
-		
-		//gradient w.r.t. the function
-		double[] g, diag;
-		
-		if(_mode.equals(Mode.NaiveRele)){
-			g = new double[_naiveReleWeights.length];
-			diag = new double[_naiveReleWeights.length];	
-		}else{
-			g = new double[_twinWeights.length];
-			diag = new double[_twinWeights.length];			
-		}
-		
-
-		int iter = 0;
-		//objVal
-		double f=0;	
-				
-		do {			
-			
-			if (iflag[0]==0 || iflag[0]==1){
-				
-				//function value based on the posterior graph inference! 
-				f = calMinObjFunctionValue(gamma_opt);
-				
-				/*
-				if(f < USMFrame._MIN){
-					f = USMFrame._MIN;
-				}
-				*/
-
-				//System.out.println("Iter-"+iter+":\tObjValue: "+f);
-				
-				calFunctionGradient(g);					
-				
-				//w.r.t. max objective function
-				//MatrixOps.timesEquals(g, -1);
-			}
-			
-			//if (iflag[0]==0 || iflag[0]==2){//if we want to estimate the diagonals by ourselves
-			//	getDiagnoal(diag, iflag[0]==2);
-			//}
-			
-			try{				
-				//_lbfgsOptimizer.lbfgs(mar_weights.length, 5, mar_weights, -f, g, false, diag, iprint, 1e-3, 1e-3, iflag);
-				if(_mode.equals(Mode.NaiveRele)){
-					_lbfgsOptimizer.lbfgs(_naiveReleWeights.length, 5, _naiveReleWeights, f, g, false, diag, iprint, 1e-3, 1e-3, iflag);
-				}else{
-					_lbfgsOptimizer.lbfgs(_twinWeights.length, 5, _twinWeights, f, g, false, diag, iprint, 1e-3, 1e-3, iflag);		
-				}
-
-			} catch (ExceptionWithIflag ex){
-				System.err.println("[Warning]M-step cannot proceed!");
-			}	
-			
-			//outputParas();
-			//System.out.println();
-			
-		}while(iflag[0]>0 && ++iter<maxIter);
-	}
-	
-	protected double calMinObjFunctionValue(double[][] gamma_opt){
-		return Double.NaN;
-	}
-	
 	public void EM_MarRele(int iter, double tol){				
 		Iterator<Map.Entry<String, Double>> alphaCursor;
 		
-		_pair par;
-		//double a_new, a_old, mu, gamma, diff=1;
 		double diff=1;
-		//double[][][] gamma_new = new double[10][11][2];
-		//double[][][] gamma_new = new double[_maxSize][_maxSize+1][2];
 		double [][] _gamma_new = new double [_maxSize][_maxSize+1];
-		String query;
 		int step = 0;
 		
 		while(step++<iter && diff>tol){
 			diff = 0;
 			
-			////update \gamma first			
+			////update gamma first			
 			//(1) w.r.t. <=rFirstClick
 			alphaCursor = m_alpha .entrySet().iterator();
 		    while (alphaCursor.hasNext()) {
@@ -791,7 +748,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		        
 		        for(int i=0; i<size; i++){
 		        	for(int j=1; j<=i+1; j++){//no zero distance
-		        		if ((rdStat.m_click_rd[i][j] + rdStat.m_skip_rd[i][j])>0)
+		        		int cnt = rdStat.m_click_rd[i][j] + rdStat.m_skip_rd[i][j];
+		        		if (cnt>0)
 			        	{
 		        			_gamma_new[i][j] += rdStat.m_click_rd[i][j] + rdStat.m_skip_rd[i][j] * (1-a)*m_gamma[i][j] / (1.0-a*m_gamma[i][j]);
 			        	}
@@ -816,21 +774,25 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		    			
 		    			rLastClick = tUrl.getRankPosition();
 		    		}else{
-		    			double marRelePro = tQuery.calMarRelePro(r, getComponentOfMarReleWeight());
+		    			double marRelePro = tQuery.calMarRelePro(r, getComponentOfMarReleWeight(), _marFeaVersion);
 		    			_gamma_new[r-1][r-rLastClick] += (1-marRelePro)*m_gamma[r-1][r-rLastClick] / (1.0-marRelePro*m_gamma[r-1][r-rLastClick]);
 		    		}
 		    	}
 		    }
 		    
 		    ////update gamma
-		    for(int i=0; i<_maxSize; i++){
+		    for(int i=0; i<m_gamma.length; i++){
 	        	for(int j=1; j<=i+1; j++){
 	        		if(_gammaSta[i][j] > 0){
 	        			_gamma_new[i][j] /= _gammaSta[i][j];
-	        			
-	        			diff += Math.pow(_gamma_new[i][j]-m_gamma[i][j], 2);
+	        				        			
+	        			if(1 == _gamma_new[i][j]){
+	        				_gamma_new[i][j] = 0.85;
+	        			}
 	        			
 	        			m_gamma[i][j] = _gamma_new[i][j];
+	        			
+	        			diff += Math.pow(_gamma_new[i][j]-m_gamma[i][j], 2);
 	        		}
 	        	}
 		    }		
@@ -858,13 +820,13 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		        }
 		        
 		        a_new = (a_new+rdStat.m_click)/(rdStat.m_click+rdStat.m_skip);
+		        m_alpha.put(alpha.getKey(), a_new);
 		        
 		        diff += (a_new-a_old)*(a_new-a_old);
 		        
-		        if (Double.isNaN(diff))
+		        if (Double.isNaN(diff)){
 		        	System.err.println("[ERROR]Encounter NaN for updating alpha!");
-		        
-		        m_alpha.put(alpha.getKey(), a_new);
+		        }
 		    }    
 		    
 		    //update alpha w.r.t. dynamic part, i.e., >rFirstClick
@@ -880,13 +842,13 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		    		TUrl tUrl = urlList.get(r-1);
 		    		
 		    		if(tUrl.getGTruthClick() > 0){
-		    			tUrl._postMarRelePro = 0.5;
-		    					
+		    			tUrl._postMarRelePro = 0.5;		    					
     					rLastclick_Mar = r;
 		    		}else{
-		    			double a_old = tUrl._marRelePro;
-		    			
+		    			double a_old = tUrl._marRelePro;		    			
 		    			tUrl._postMarRelePro = a_old*(1.0-m_gamma[r-1][r-rLastclick_Mar])/(1.0-a_old*m_gamma[r-1][r-rLastclick_Mar]);
+		    			
+		    			diff += Math.pow(a_old-tUrl._postMarRelePro, 2);
 		    		}
 		    	}
 		    }
@@ -902,7 +864,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		    	updateAlpha();
 		    }    
 		    
-		    //diff /= (m_alpha.size() + 45 + m_mu.size());//parameter size
+		    diff /= (m_alpha.size() + 45);//parameter size
 		    
 		    System.out.println("[Info]EM step " + step + ", diff:" + diff);
 		}
@@ -910,133 +872,74 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		//System.out.println("[Info]Processed " + m_alpha.size() + " (q,u) pairs...");
 	}
 	
-	@Override
-	public double getClickProb(TQuery tQuery, TUrl tUrl) {
-		return getAlpha_Ext(tQuery, tUrl, false, _mode, false);
-		//return 1.0/u.m_pos;//test the original performance
-	}
-	
-	public void SaveAlpha(String filename){
-		try {
-			BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(filename)));
-			Iterator<Map.Entry<String, Double> > it = m_alpha.entrySet().iterator();
-			String qu;
-			_stat st;
-			int qu_size = 0;
-		    while (it.hasNext()) {
-		        Map.Entry<String, Double> pairs = (Map.Entry<String, Double>)it.next();
-		        qu = pairs.getKey();
-		        st = m_uq_stat.get(qu);
-		        if (st.m_click + st.m_skip<=1)
-		        	continue;
-		        
-		        writer.write(qu + "\t" +pairs.getValue() + "\n");
-		        qu_size ++;
-		    }
-			writer.close();
-			System.out.println("[Info]Total " + qu_size + " (q,u) pairs saved!");
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
+	/**
+	 * usage w.r.t. features
+	 * **/
+	protected void optimize(int maxIter, double[][] gamma_opt) throws ExceptionWithIflag{
+		
+		LBFGS _lbfgsOptimizer = new LBFGS();
+		
+		int[] iprint = {-1, 0}, iflag = {0};
+		
+		//gradient w.r.t. the function
+		double[] g, diag;
+		
+		if(_mode.equals(Mode.NaiveRele)){
+			g = new double[_naiveReleWeights.length];
+			diag = new double[_naiveReleWeights.length];	
+		}else{
+			g = new double[_twinWeights.length];
+			diag = new double[_twinWeights.length];			
 		}
-	}
-	
-	@Override
-	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
-		//one-time calculation
-		//tQuery.calContextInfor();
-		ArrayList<TUrl> urlList = tQuery.getUrlList();
 		
-		double sessionProb = 1.0;
-		
-		if(onlyClicks){
-			for(int rankPos=1; rankPos<=urlList.size(); rankPos++){
-				TUrl tUrl = urlList.get(rankPos-1);
+
+		int iter = 0;
+		//objVal
+		double f=0;	
 				
-				if(tUrl.getGTruthClick() > 0){
-					if(1 == rankPos){
-						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false);
-						sessionProb *= alpha_qu;
-					}else{
-						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false);
-						int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
-						
-						double curGamma = m_gamma[rankPos-1][dis];
-						if(0 == curGamma){
-							curGamma = m_gamma_init;
-						}
-						
-						sessionProb *= (alpha_qu*curGamma);
-					}					
-				}			
+		do {			
+			
+			if (iflag[0]==0 || iflag[0]==1){
+				
+				//function value based on the posterior graph inference! 
+				f = calMinObjFunctionValue();
+				
+				/*
+				if(f < USMFrame._MIN){
+					f = USMFrame._MIN;
+				}
+				*/
+
+				//System.out.println("Iter-"+iter+":\tObjValue: "+f);
+				
+				calFunctionGradient(g);					
+				
+				//w.r.t. max objective function
+				//MatrixOps.timesEquals(g, -1);
 			}
-		}else{//plus skips
-			for(int rankPos=1; rankPos<=urlList.size(); rankPos++){
-				TUrl tUrl = urlList.get(rankPos-1);
-				
-				if(tUrl.getGTruthClick() > 0){
-					if(1 == rankPos){
-						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false);
-						sessionProb *= alpha_qu;
-						
-						if(0 == sessionProb){
-							System.out.println("1 alpha_qu:\t"+alpha_qu);
-							System.exit(0);
-						}
-					}else{
-						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false);
-						int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
-						
-						double curGamma = m_gamma[rankPos-1][dis];
-						if(0 == curGamma){
-							curGamma = m_gamma_init;
-						}
-						
-						sessionProb *= (alpha_qu*curGamma);
-						if(0 == sessionProb){
-							System.out.println("2 > 0 alpha_qu:\t"+alpha_qu);
-							System.exit(0);
-						}
-					}					
+			
+			//if (iflag[0]==0 || iflag[0]==2){//if we want to estimate the diagonals by ourselves
+			//	getDiagnoal(diag, iflag[0]==2);
+			//}
+			
+			try{				
+				//_lbfgsOptimizer.lbfgs(mar_weights.length, 5, mar_weights, -f, g, false, diag, iprint, 1e-3, 1e-3, iflag);
+				if(_mode.equals(Mode.NaiveRele)){
+					_lbfgsOptimizer.lbfgs(_naiveReleWeights.length, 5, _naiveReleWeights, f, g, false, diag, iprint, 1e-3, 1e-3, iflag);
 				}else{
-					if(1 == rankPos){
-						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false);
-						if(1 == alpha_qu){
-							alpha_qu = 0.9;
-						}
-						sessionProb *= (1-alpha_qu);
-						
-						if(0 == sessionProb){
-							System.out.println("1 =0 alpha_qu:\t"+alpha_qu);
-							System.exit(0);
-						}
-					}else{
-						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false);
-						int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
-						
-						double curGamma = m_gamma[rankPos-1][dis];
-						if(0 == curGamma){
-							curGamma = m_gamma_init;
-						}
-						
-						sessionProb *= (1-alpha_qu*curGamma);
-						if(0 == sessionProb){
-							System.out.println("2 =0 alpha_qu:\t"+alpha_qu);
-							System.exit(0);
-						}
-					}					
-				}			
-			}
-		}		
-		
-		return sessionProb;		
+					_lbfgsOptimizer.lbfgs(_twinWeights.length, 5, _twinWeights, f, g, false, diag, iprint, 1e-3, 1e-3, iflag);		
+				}
+			} catch (ExceptionWithIflag ex){
+				System.err.println("[Warning]M-step cannot proceed!");
+			}	
+			
+			//outputParas();
+			//System.out.println();
+			
+		}while(iflag[0]>0 && ++iter<maxIter);
 	}
 	
-	protected void  name() {
-		
-	}
-	////	
+	//
 	protected double calMinObjFunctionValue_NaiveRele(){
 		double objVal = 0.0;
 		
@@ -1068,7 +971,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		for(int i=0; i<this._trainNum; i++){
 			TQuery tQuery = this._QSessionList.get(i);
 			int firstC = tQuery.getFirstClickPosition();
-			//1
+			//1 <=rFirstClick
 			for(int rank=1; rank<=firstC; rank++){
 				TUrl tUrl = tQuery.getUrlList().get(rank-1);
 				
@@ -1080,12 +983,12 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 				
 				objVal += var;				
 			}
-			//2
+			//2 > rFirstClick
 			for(int rank=firstC+1; rank<=tQuery.getUrlList().size(); rank++){
 				TUrl tUrl = tQuery.getUrlList().get(rank-1);
 				
 				double postMarRelePro = tUrl._postMarRelePro;
-				double marRelePro = tQuery.calMarRelePro(rank, marReleWeights);
+				double marRelePro = tQuery.calMarRelePro(rank, marReleWeights, _marFeaVersion);
 				
 				double var = Math.pow(marRelePro-postMarRelePro, 2);
 				
@@ -1108,7 +1011,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 				//1
 				double firstPart = 2*(feaRelePro-postRelePro);
 				//2
-				double releVal = USMFrame.calFunctionVal(tUrl.getReleFeatures(), _naiveReleWeights, FunctionType.LINEAR);
+				double releVal = USMFrame.calFunctionVal(tUrl.getReleFeatures(), _naiveReleWeights, getFunctionType());
 				double expVal = Math.exp(releVal);
 				double secondPart = expVal/Math.pow((1+expVal), 2);
 				
@@ -1138,7 +1041,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 				//1
 				double firstPart = 2*(feaRelePro-postRelePro);
 				//2
-				double releVal = USMFrame.calFunctionVal(tUrl.getReleFeatures(), naiveReleWeights, FunctionType.LINEAR);
+				double releVal = USMFrame.calFunctionVal(tUrl.getReleFeatures(), naiveReleWeights, getFunctionType());
 				double expVal = Math.exp(releVal);
 				double secondPart = expVal/Math.pow((1+expVal), 2);
 				
@@ -1153,7 +1056,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 				TUrl tUrl = tQuery.getUrlList().get(rank-1);
 				
 				double postRelePro = tUrl._postMarRelePro;
-				double marRelePro = tQuery.calMarRelePro(rank, marReleWeights);
+				double marRelePro = tQuery.calMarRelePro(rank, marReleWeights, _marFeaVersion);
 				
 				//1
 				double firstPart = 2*(marRelePro-postRelePro);
@@ -1163,9 +1066,16 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 				double secondPart = expVal/Math.pow((1+expVal), 2);
 				
 				//traverse 3
-				double [] marReleFeatures = tQuery.getPureMarFeature(rank);
+				double [] marReleFeatures;
+				if(_marFeaVersion.equals(MarFeaVersion.V1)){
+					marReleFeatures = tQuery.getPureMarFeature(rank);
+				}else{
+					marReleFeatures = tQuery.getMarFeature_Join(rank);
+				}
+				
+				
 				for(int k=naiveReleWeights.length; k<_twinWeights.length; k++){
-					g[k] += (firstPart*secondPart*marReleFeatures[k]);
+					g[k] += (firstPart*secondPart*marReleFeatures[k-naiveReleWeights.length]);
 				}
 			}
 		}
@@ -1236,7 +1146,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			
 			for(int r=rFirstClick+1; r<=tQuery.getUrlList().size(); r++){
 				TUrl tUrl = urlList.get(r-1);
-				tUrl._marRelePro = tQuery.calMarRelePro(r, marReleWeights);
+				tUrl._marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);
 			}
 		}
 	}	
@@ -1249,10 +1159,246 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	////
 	protected void estimateParas() {
 		//EM_Multiple(70, 1e-8);
-		
-		EM_Single(40, 1e-8);
+		if(_mode.equals(Mode.MarginalRele)){
+			EM_MarRele(40, 1e-8);
+		}else{
+			EM_Single(40, 1e-8);
+		}		
 	}
 	
+	protected FunctionType getFunctionType() {
+		return _fType;
+	}
+	
+	@Override
+	public double getClickProb(TQuery tQuery, TUrl tUrl) {
+		return getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
+		//return 1.0/u.m_pos;//test the original performance
+	}
+	
+	public void SaveAlpha(String filename){
+		try {
+			BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(filename)));
+			Iterator<Map.Entry<String, Double> > it = m_alpha.entrySet().iterator();
+			String qu;
+			_stat st;
+			int qu_size = 0;
+		    while (it.hasNext()) {
+		        Map.Entry<String, Double> pairs = (Map.Entry<String, Double>)it.next();
+		        qu = pairs.getKey();
+		        st = m_uq_stat.get(qu);
+		        if (st.m_click + st.m_skip<=1)
+		        	continue;
+		        
+		        writer.write(qu + "\t" +pairs.getValue() + "\n");
+		        qu_size ++;
+		    }
+			writer.close();
+			System.out.println("[Info]Total " + qu_size + " (q,u) pairs saved!");
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	@Override
+	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
+		//one-time calculation
+		//tQuery.calContextInfor();
+		ArrayList<TUrl> urlList = tQuery.getUrlList();
+		
+		double sessionProb = 1.0;
+		
+		if(onlyClicks){
+			for(int rankPos=1; rankPos<=urlList.size(); rankPos++){
+				TUrl tUrl = urlList.get(rankPos-1);
+				
+				if(tUrl.getGTruthClick() > 0){
+					if(1 == rankPos){
+						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
+						sessionProb *= alpha_qu;
+					}else{
+						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
+						int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
+						
+						double curGamma = m_gamma[rankPos-1][dis];
+						if(0 == curGamma){
+							curGamma = m_gamma_init;
+						}
+						
+						sessionProb *= (alpha_qu*curGamma);
+					}					
+				}			
+			}
+		}else{//plus skips
+			for(int rankPos=1; rankPos<=urlList.size(); rankPos++){
+				TUrl tUrl = urlList.get(rankPos-1);
+				
+				if(tUrl.getGTruthClick() > 0){
+					if(1 == rankPos){
+						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
+						sessionProb *= alpha_qu;
+						
+						if(0 == sessionProb){
+							System.out.println("1 alpha_qu:\t"+alpha_qu);
+							System.exit(0);
+						}
+					}else{
+						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
+						int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
+						
+						double curGamma = m_gamma[rankPos-1][dis];
+						if(0 == curGamma){
+							curGamma = m_gamma_init;
+						}
+						
+						sessionProb *= (alpha_qu*curGamma);
+						if(0 == sessionProb){
+							System.out.println("2 > 0 alpha_qu:\t"+alpha_qu);
+							System.exit(0);
+						}
+					}					
+				}else{
+					if(1 == rankPos){
+						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
+						if(1 == alpha_qu){
+							alpha_qu = 0.9;
+						}
+						sessionProb *= (1-alpha_qu);
+						
+						if(0 == sessionProb){
+							System.out.println("1 =0 alpha_qu:\t"+alpha_qu);
+							System.exit(0);
+						}
+					}else{
+						double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
+						int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
+						
+						double curGamma = m_gamma[rankPos-1][dis];
+						if(0 == curGamma){
+							curGamma = m_gamma_init;
+						}
+						
+						sessionProb *= (1-alpha_qu*curGamma);
+						if(0 == sessionProb){
+							System.out.println("2 =0 alpha_qu:\t"+alpha_qu);
+							System.exit(0);
+						}
+					}					
+				}			
+			}
+		}		
+		
+		return sessionProb;		
+	}
+	//
+	public double getSessionProb_MarginalRele(TQuery tQuery){
+		double [] marReleWeights   = getComponentOfMarReleWeight();
+		
+		ArrayList<TUrl> urlList = tQuery.getUrlList();
+		
+		double sessionProb = 1.0;
+		int rFirstClick = tQuery.getFirstClickPosition();
+		
+		//<=rFirstClick
+		for(int r=1; r<=rFirstClick; r++){
+			TUrl tUrl = urlList.get(r-1);
+			
+			if(tUrl.getGTruthClick() > 0){
+				if(1 == r){
+					double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
+					sessionProb *= alpha_qu;
+					
+					if(0 == sessionProb){
+						System.out.println("1 alpha_qu:\t"+alpha_qu);
+						System.exit(0);
+					}
+				}else{
+					double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
+					int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
+					
+					double curGamma = m_gamma[r-1][dis];
+					if(0 == curGamma){
+						curGamma = m_gamma_init;
+					}
+					
+					sessionProb *= (alpha_qu*curGamma);
+					if(0 == sessionProb){
+						System.out.println("2 > 0 alpha_qu:\t"+alpha_qu);
+						System.exit(0);
+					}
+				}					
+			}else{
+				if(1 == r){
+					double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
+					if(1 == alpha_qu){
+						alpha_qu = 0.95;
+					}
+					sessionProb *= (1-alpha_qu);
+					
+					if(0 == sessionProb){
+						System.out.println("1 =0 alpha_qu:\t"+alpha_qu);
+						System.exit(0);
+					}
+				}else{
+					double alpha_qu = getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
+					int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
+					
+					double curGamma = m_gamma[r-1][dis];
+					if(0 == curGamma){
+						curGamma = m_gamma_init;
+					}
+					
+					sessionProb *= (1-alpha_qu*curGamma);
+					if(0 == sessionProb){
+						System.out.println("2 =0 alpha_qu:\t"+alpha_qu);
+						System.exit(0);
+					}
+				}					
+			}
+		}
+		
+		//>rFirstClick
+		for(int r=rFirstClick+1; r<=urlList.size(); r++){
+			TUrl tUrl = urlList.get(r-1);
+			int dis = Math.max(0, (int)tUrl.getDisToLastClick()-1);
+			
+			if(tUrl.getGTruthClick() > 0){
+				double marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);
+				
+				double curGamma = m_gamma[r-1][dis];
+				if(0 == curGamma){
+					curGamma = m_gamma_init;
+				}
+				
+				sessionProb *= (marRelePro*curGamma);
+				if(0 == sessionProb){
+					System.out.println("2 > 0 alpha_qu:\t"+marRelePro);
+					System.exit(0);
+				}
+			}else{
+				double marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);				
+				
+				double curGamma = m_gamma[r-1][dis];
+				if(0 == curGamma){
+					curGamma = m_gamma_init;
+				}
+				
+				sessionProb *= (1-marRelePro*curGamma);
+				if(0 == sessionProb){
+					System.out.println("2 =0 alpha_qu:\t"+marRelePro);
+					System.exit(0);
+				}
+			}
+		}	
+		
+		return sessionProb;		
+	}
+	
+	protected void  name() {
+		
+	}
 //	public static void main(String[] args) {		
 //		UBM ubm = new UBM(0, 0.2, 0.5, 0.5);
 //		ubm.LoadLogs("Data/Bucket/urls_large_tmp.dat");
@@ -1305,7 +1451,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		int maxQSessionSize = 10;
 		int minQFre = 2;
 
-		Mode mode = Mode.Original;
+		Mode mode = Mode.MarginalRele;
 		
 		boolean useFeature;
 		
@@ -1315,7 +1461,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			useFeature = true;
 		}		
 		
-		T_UBM t_UBM = new T_UBM(minQFre, mode, useFeature, testRatio, 0.2, 0.5, 0.5, maxQSessionSize);
+		T_UBM t_UBM = new T_UBM(minQFre, mode, maxQSessionSize, useFeature, testRatio, 0.2, 0.5, 0.5);
 		
 		t_UBM.train();
 		

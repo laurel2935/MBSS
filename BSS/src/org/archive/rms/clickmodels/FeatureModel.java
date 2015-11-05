@@ -11,6 +11,7 @@ import optimizer.LBFGS.ExceptionWithIflag;
 
 import org.archive.access.feature.FRoot;
 import org.archive.rms.advanced.MAnalyzer;
+import org.archive.rms.advanced.USMFrame.FunctionType;
 import org.archive.rms.clickmodels.T_Evaluation.Mode;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
@@ -30,11 +31,18 @@ public abstract class FeatureModel extends MAnalyzer {
 	//w.r.t. independent relevance
 	protected double []  _naiveReleWeights;
 	protected static int _naiveReleFeaLen = 13;
+	
 	//w.r.t. marginal utility, consisting of two parts: (1) documents >= first clicked documents; (2) documents below first clicked document
 	protected double []  _twinWeights;
-	protected static int _twinFeatureLen = 13 + 6;
+	//i.e., when computing marginal utility, only use marginal features, which seems to be counter-intuitive without relevance features
+	protected static int _twinFeatureLen_v_1 = 13 + 6;
+	//i.e., when computing marginal utility, both marginal features and relevance features are used.
+	protected static int _twinFeatureLen_v_2 = 13 + 13 + 6;
 	
-	protected static double _defaultWeightScale = 20;
+	public enum MarFeaVersion {V1, V2};
+	protected MarFeaVersion _marFeaVersion = MarFeaVersion.V1;
+	
+	protected static double _defaultWeightScale = 50;
 	
 	//the maximum size of a query session that will be considered
 	protected static int _defaultQSessionSize = 20;
@@ -89,7 +97,7 @@ public abstract class FeatureModel extends MAnalyzer {
 	}
 	
 	protected void iniWeightVector_MarginalRele(boolean useCurrentOptimal){
-		_twinWeights = new double[_twinFeatureLen];
+		_twinWeights = new double[getMarFeaLength()];
 		
 		if(useCurrentOptimal){
 			double [] currentOptParas = loadCurrentOptimalParas();			
@@ -125,6 +133,7 @@ public abstract class FeatureModel extends MAnalyzer {
 		}
 		
 		getStats();
+		
 		getSeenQUPairs();		
 	}
 	////feature
@@ -140,11 +149,11 @@ public abstract class FeatureModel extends MAnalyzer {
 			//normalizeFeatureByMax_NaiveRele();
 			
 		}else if(_mode.equals(Mode.MarginalRele)){
-			
+			//1
 			for(TQuery tQuery: this._QSessionList){			
 				tQuery.calReleFeature(key2ReleFeatureMap, false);			
 			}
-			
+			//2
 			for(int i=0; i<this._QSessionList.size(); i++){
 				TQuery tQuery = this._QSessionList.get(i);
 				
@@ -154,6 +163,8 @@ public abstract class FeatureModel extends MAnalyzer {
 				//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently						
 				tQuery.calMarFeatureList(true, false);			
 			}
+			//3
+			normalizeFeatures_MarginalRele();
 		}		
 	}
 	
@@ -244,12 +255,83 @@ public abstract class FeatureModel extends MAnalyzer {
 		return maxFeatureVec;		
 	}
 	
+	////mar
+	protected void normalizeFeatures_MarginalRele(){
+		//rele part
+		double[] releMean = new double [_naiveReleFeaLen];
+		double[] releStdVar = new double [releMean.length];
+		
+		getReleFeatureMeanStdVariance(releMean, releStdVar);
+		
+		for(TQuery tQuery: this._QSessionList){
+			int firstC = tQuery.getFirstClickPosition();
+			TUrl tUrl = tQuery.getUrlList().get(firstC-1);
+			tUrl.releNormalize(releMean, releStdVar);
+		}
+		
+		//mar part
+		double[] marMean = new double [getMarFeaLength()-_naiveReleFeaLen];
+		double[] marStdVar = new double [marMean.length];
+		
+		getMarFeatureMeanStdVariance(marMean, marStdVar);
+		
+		for(TQuery tQuery: this._QSessionList){			
+			tQuery.marNormalize_Total(marMean, marStdVar);
+		}
+	}
+	
+	protected void getMarFeatureMeanStdVariance(double[] marMean, double[] marStdVar){
+		double count=0, value;
+		double[] marFeatureVec;
+		
+		//mean
+		for(TQuery tQuery: this._QSessionList){
+			int firstC = tQuery.getFirstClickPosition();
+			for(int rank=firstC+1; rank<=tQuery.getUrlList().size(); rank++){
+				marFeatureVec = tQuery.getPureMarFeature(rank);				
+				for(int i=0; i<marFeatureVec.length; i++){
+					value = marFeatureVec[i];
+					marMean[i] += value;
+				}
+			}
+			
+			count ++;
+		}
+		for(int i=0; i<marMean.length; i++){
+			marMean[i] /= count;
+		}
+		
+		//std variance
+		for(TQuery tQuery: this._QSessionList){
+			int firstC = tQuery.getFirstClickPosition();
+			for(int rank=firstC+1; rank<=tQuery.getUrlList().size(); rank++){
+				marFeatureVec = tQuery.getPureMarFeature(rank);				
+				for(int i=0; i<marFeatureVec.length; i++){
+					value = marFeatureVec[i];
+					marStdVar [i] += Math.pow((value-marMean[i]), 2);
+				}
+			}
+		}
+		
+		for(int i=0; i<marStdVar.length; i++){
+			marStdVar [i] = Math.sqrt(marStdVar[i]/(count-1));
+		}
+	}
+	
 	protected double [] getComponentOfMarReleWeight() {
 		return Arrays.copyOfRange(_twinWeights, 13, _twinWeights.length);
 	}
 	
 	protected double [] getComponentOfNaiveReleWeight() {
 		return Arrays.copyOfRange(_twinWeights, 0, 13);
+	}
+	
+	protected int getMarFeaLength() {
+		if(_marFeaVersion.equals(MarFeaVersion.V1)){
+			return _twinFeatureLen_v_1;
+		}else{
+			return _twinFeatureLen_v_2;
+		}
 	}
 	
 	////objective function
@@ -365,8 +447,17 @@ public abstract class FeatureModel extends MAnalyzer {
 	protected abstract void updateAlpha_MarginalRele();
 	//
 	protected abstract void estimateParas();
-		
-	protected abstract void getStats();
+	protected abstract FunctionType getFunctionType();	
+	protected void getStats(){
+		if(_mode.equals(Mode.MarginalRele)){
+			getStats_MarginalRele();
+		}else{
+			getStats_Static();
+		}
+	}
+	
+	protected abstract void getStats_Static();
+	protected abstract void getStats_MarginalRele();
 	
 	public double getTestCorpusProb(boolean onlyClicks, boolean uniformCmp){
 		getSeenVsUnseenInfor();
@@ -380,14 +471,21 @@ public abstract class FeatureModel extends MAnalyzer {
 				continue;
 			}
 			
-			double session = getSessionProb(tQuery, onlyClicks);
-			corpusLikelihood += Math.log(session);
+			double sessionPro;
+			if(_mode.equals(Mode.MarginalRele)){
+				sessionPro = getSessionProb_MarginalRele(tQuery);
+			}else{
+				sessionPro = getSessionProb(tQuery, onlyClicks); 
+			}
+			
+			corpusLikelihood += Math.log(sessionPro);
 		}
 		//the higher the better
 		return corpusLikelihood;		
 	}
 	
 	public abstract double getSessionProb(TQuery tQuery, boolean onlyClicks);
+	public abstract double getSessionProb_MarginalRele(TQuery tQuery);
 	
 	//
 	protected void getSeenQUPairs(){

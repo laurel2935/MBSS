@@ -1,10 +1,6 @@
-/**
- * 
- */
 package org.archive.rms.clickmodels;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map.Entry;
@@ -69,6 +65,7 @@ public class T_NaiveCM extends FeatureModel implements T_Evaluation {
 	HashMap<String, QueryStat> m_model;
 	//overall click probability
 	double m_prior;
+	private static FunctionType _fType = FunctionType.LINEAR;
 	
 	public T_NaiveCM(int minQFre, Mode mode, boolean useFeature, double testRatio, int maxQSessionSize) {
 		super(minQFre, mode, useFeature, testRatio, maxQSessionSize);
@@ -376,6 +373,10 @@ public class T_NaiveCM extends FeatureModel implements T_Evaluation {
 	protected void updateAlpha_MarginalRele(){
 		System.out.println("Error call w.r.t. updateAlpha_MarginalRele()");
 		System.exit(0);
+	}
+	
+	protected FunctionType getFunctionType() {
+		return _fType;
 	}
 	
 	public void train(){	

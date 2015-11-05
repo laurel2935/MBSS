@@ -249,7 +249,7 @@ public class MClickModel extends USMFrame{
 		return tQuery.getQSessionPro();
 	}
 	
-	public double getTestCorpusProb(boolean onlyClick) {
+	public double getTestCorpusProb(boolean onlyClick, boolean uniformCmp) {
 				
 		if(!onlyClick){
 			System.err.println("USM-similar models only use clicks!");
@@ -609,7 +609,7 @@ public class MClickModel extends USMFrame{
 		getMarFeatureMeanStdVariance(marMean, marStdVar);
 		
 		for(TQuery tQuery: this._QSessionList){			
-			tQuery.marNormalize(marMean, marStdVar);
+			tQuery.marNormalize_Total(marMean, marStdVar);
 		}
 	}
 	
@@ -624,6 +624,6 @@ public class MClickModel extends USMFrame{
 		mClickModel.train();
 		//0-7
 		//before normalizing -5092.38721036584
-		System.out.println(mClickModel.getTestCorpusProb(true));
+		System.out.println(mClickModel.getTestCorpusProb(true, true));
 	}
 }
