@@ -1,5 +1,6 @@
 package org.archive.rms.clickmodels;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -16,6 +17,7 @@ import org.archive.rms.clickmodels.T_Evaluation.Mode;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 import org.archive.util.io.IOText;
+import org.archive.util.tuple.StrInt;
 
 public abstract class FeatureModel extends MAnalyzer {
 	/**
@@ -43,6 +45,8 @@ public abstract class FeatureModel extends MAnalyzer {
 	protected MarFeaVersion _marFeaVersion = MarFeaVersion.V1;
 	
 	protected static double _defaultWeightScale = 50;
+	protected static double _minObjValue;
+	protected static final double _log2 = Math.log(2.0);
 	
 	//the maximum size of a query session that will be considered
 	protected static int _defaultQSessionSize = 20;
@@ -50,8 +54,8 @@ public abstract class FeatureModel extends MAnalyzer {
 	protected HashSet<String> _seenQUPairSet;
 	protected HashSet<String> _unseenQUPairSet;
 	
-	protected static HashSet<String> _seenInTest = new HashSet<>();
-	protected static HashSet<String> _unseenInTest = new HashSet<>();
+	protected static HashSet<String> _seenQUPairInTest = new HashSet<>();
+	protected static HashSet<String> _unseenQUPairInTest = new HashSet<>();
     ////----
 	
 	
@@ -79,14 +83,13 @@ public abstract class FeatureModel extends MAnalyzer {
 	
 	protected void iniWeightVector_NaiveRele(boolean useCurrentOptimal){		
 		_naiveReleWeights = new double[_naiveReleFeaLen];
+		double [] currentOptParas = loadCurrentOptimalParas();
 		
-		if(useCurrentOptimal){
-			double [] currentOptParas = loadCurrentOptimalParas();
-			
-			for(int i=0; i<currentOptParas.length; i++){
-				_naiveReleWeights[i] = currentOptParas[i];
-			}
-			
+		if(useCurrentOptimal && null!=currentOptParas){			
+			//since the first element is the objective value
+			for(int i=1; i<currentOptParas.length; i++){
+				_naiveReleWeights[i-1] = currentOptParas[i];
+			}			
 		}else{
 			double weightScale = _defaultWeightScale;		
 			Random rand = new Random();
@@ -98,11 +101,12 @@ public abstract class FeatureModel extends MAnalyzer {
 	
 	protected void iniWeightVector_MarginalRele(boolean useCurrentOptimal){
 		_twinWeights = new double[getMarFeaLength()];
+		double [] currentOptParas = loadCurrentOptimalParas();
 		
-		if(useCurrentOptimal){
-			double [] currentOptParas = loadCurrentOptimalParas();			
-			for(int i=0; i<currentOptParas.length; i++){
-				_twinWeights[i] = currentOptParas[i];
+		if(useCurrentOptimal && null!=currentOptParas){					
+			//since the first element is the objective value
+			for(int i=1; i<currentOptParas.length; i++){
+				_twinWeights[i-1] = currentOptParas[i];
 			}			
 		}else{
 			double weightScale = _defaultWeightScale;		
@@ -114,15 +118,37 @@ public abstract class FeatureModel extends MAnalyzer {
 	}
 	
 	protected double [] loadCurrentOptimalParas(){
-		String optimalParaFile = FRoot._bufferParaDir+"Parameter_Mar_Optimal.txt";
-		ArrayList<String> lineList = IOText.getLinesAsAList_UTF8(optimalParaFile);
+		String optParaFileName = getOptParaFileNameString();	
+		ArrayList<String> lineList = null;
+		try {
+			File tmpFile = new File(optParaFileName);
+			if(tmpFile.exists()){
+				lineList = IOText.getLinesAsAList_UTF8(optParaFileName);
+			}else {
+				return null;
+			}
+		} catch (Exception e) {
+			// TODO: handle exception
+			e.printStackTrace();
+		}		
 		
-		double [] currentOptParas = new double [lineList.size()-1];
-		for(int i=0; i<currentOptParas.length; i++){
-			currentOptParas[i] = Double.parseDouble(lineList.get(i+1));
+		double [] optParameters = new double [lineList.size()];	
+		
+		for(int i=0; i<lineList.size(); i++){
+			optParameters[i] = Double.parseDouble(lineList.get(i));
+		}				
+		return optParameters;
+	}
+	
+	protected String getOptParaFileNameString() {
+	 String testParaStr = "_"+Integer.toString(_minQFreForTest)+"_"+Integer.toString(_maxQSessionSize);
+		String optParaFileName = null;
+		if(_mode == Mode.NaiveRele){
+			optParaFileName = FRoot._bufferParaDir+"UBM_NaiveReleParameter"+testParaStr+".txt";
+		}else{
+			optParaFileName = FRoot._bufferParaDir+"UBM_MarReleParameter_"+_marFeaVersion.toString()+testParaStr+".txt";
 		}
-		
-		return currentOptParas;
+		return optParaFileName;
 	}
 
 	////
@@ -137,7 +163,13 @@ public abstract class FeatureModel extends MAnalyzer {
 		getSeenQUPairs();		
 	}
 	////feature
-	protected void iniFeatures(){		
+	protected void iniFeatures(){
+		//a must
+		for(TQuery tQuery: this._QSessionList){			
+			//context information
+			tQuery.calContextInfor();			
+		}
+		
 		if(_mode.equals(Mode.NaiveRele)){
 			for(TQuery tQuery: this._QSessionList){			
 				tQuery.calReleFeature(key2ReleFeatureMap, false);			
@@ -394,7 +426,7 @@ public abstract class FeatureModel extends MAnalyzer {
 				
 				//function value based on the posterior graph inference! 
 				f = calMinObjFunctionValue();
-				
+				_minObjValue = f;
 				/*
 				if(f < USMFrame._MIN){
 					f = USMFrame._MIN;
@@ -461,12 +493,10 @@ public abstract class FeatureModel extends MAnalyzer {
 	
 	public double getTestCorpusProb(boolean onlyClicks, boolean uniformCmp){
 		getSeenVsUnseenInfor();
-		
+				
 		double corpusLikelihood = 0.0;
 		
-		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
-			TQuery tQuery = this._QSessionList.get(k);
-			
+		for(TQuery tQuery: _testCorpus){			
 			if(skipQuerySession(tQuery, uniformCmp)){
 				continue;
 			}
@@ -478,7 +508,15 @@ public abstract class FeatureModel extends MAnalyzer {
 				sessionPro = getSessionProb(tQuery, onlyClicks); 
 			}
 			
-			corpusLikelihood += Math.log(sessionPro);
+			double logValue = Math.log(sessionPro);
+			if(Double.isNaN(logValue)){
+				System.out.println("Zero session pro error!");
+				System.out.println(sessionPro);
+				System.exit(0);
+				return Double.NaN;
+			}
+			
+			corpusLikelihood += logValue;
 		}
 		//the higher the better
 		return corpusLikelihood;		
@@ -490,7 +528,7 @@ public abstract class FeatureModel extends MAnalyzer {
 	//
 	protected void getSeenQUPairs(){
 		this._seenQUPairSet = new HashSet<>();		
-		for(int i=0; i<this._trainNum; i++){
+		for(int i=0; i<this._trainCnt; i++){
 			TQuery tQuery = this._QSessionList.get(i);			
 			for(TUrl tUrl: tQuery.getUrlList()){						
 				String key = getKey(tQuery, tUrl);
@@ -503,17 +541,18 @@ public abstract class FeatureModel extends MAnalyzer {
 	////
 	protected void getSeenVsUnseenInfor() {
 		System.out.println();
-		System.out.println("TrainNum: "+_trainNum+"\tTestNum: "+_testNum);
+		System.out.println("TrainNum: "+_trainCnt+"\tTestNum: "+_testCnt);
 		
 		int unseenQSessionCnt = 0;
-		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
-			TQuery tQuery = this._QSessionList.get(k);			
+		for(TQuery tQuery: _testCorpus){
 			if(includeUnseeUrl(tQuery)){
 				unseenQSessionCnt++;
 			}
 		}		
-		System.out.println("seenInTest: "+_seenInTest.size()+"\tunseenInTest: "+_unseenInTest.size()+"\tratio: "+(_unseenInTest.size()*1.0/(_seenInTest.size()+_unseenInTest.size())));
-		System.out.println("UnseenQuerySession: "+unseenQSessionCnt+"\tTestQuerySession: "+_testNum+"\tUnseenRation: "+(unseenQSessionCnt*1.0/_testNum));
+		System.out.println("seenQUPairInTest: "+_seenQUPairInTest.size()+"\tunseenQUPairInTest: "+_unseenQUPairInTest.size()+"\tratio: "+(_unseenQUPairInTest.size()*1.0/(_seenQUPairInTest.size()+_unseenQUPairInTest.size())));
+		System.out.println();
+		System.out.println("UnseenQuerySession: "+unseenQSessionCnt+"\tTestQuerySession: "+_testCnt+"\tUnseenRatio: "+(unseenQSessionCnt*1.0/_testCnt));
+		System.out.println();
 	}
 	
 	protected boolean skipQuerySession(TQuery tQuery, boolean uniformaComparison){
@@ -539,10 +578,10 @@ public abstract class FeatureModel extends MAnalyzer {
 			String key = getKey(tQuery, tUrl);
 			
 			if(this._seenQUPairSet.contains(key)){
-				_seenInTest.add(key);
+				_seenQUPairInTest.add(key);
 			}else{
 				unseenCnt++;
-				_unseenInTest.add(key);
+				_unseenQUPairInTest.add(key);
 			}
 		}
 		

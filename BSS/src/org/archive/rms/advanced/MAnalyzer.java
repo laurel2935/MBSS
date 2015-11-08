@@ -45,11 +45,15 @@ public class MAnalyzer {
 	protected Random m_rand;
 	protected double _testRatio;
 	//i.e., top-trainNum instances
-	protected int _trainNum;
+	protected int _trainCnt;
 	//i.e., later-testNum instances
-	protected int _testNum;
+	protected int _testCnt;
 	protected ArrayList<TQuery> _QSessionList;
+	protected ArrayList<TQuery> _testCorpus;
 	//--
+	
+	protected int _minQFreForTest;
+	protected int _maxQSessionSize;
 	
 	public static final String NEWLINE = System.getProperty("line.separator");
 	protected static final String QSessionLine = "QSession";
@@ -87,8 +91,10 @@ public class MAnalyzer {
 	}
 	
 	
-	protected MAnalyzer(int minQFre, double testRatio, boolean useFeature, int maxQSessionSize){
+	protected MAnalyzer(int minQFreForTest, double testRatio, boolean useFeature, int maxQSessionSize){
 		this._testRatio = testRatio;
+		this._minQFreForTest = minQFreForTest;
+		this._maxQSessionSize = maxQSessionSize;
 		
 		this._QSessionList = new ArrayList<>();
 		//search log
@@ -99,14 +105,15 @@ public class MAnalyzer {
 			loadFeatureVectors();
 		}	
 		
-		filterBySize(maxQSessionSize);
+		adjustBySize(maxQSessionSize);
 		
-		filterByQFre(minQFre);
 		//should head of filterBySize
-		filterByClickNum(8);
+		int maxClickCnt = (int)(0.9*maxQSessionSize);
+		filterByClickNum(maxClickCnt);
 		
-		this._testNum = (int)(this._QSessionList.size()*testRatio);
-		this._trainNum = this._QSessionList.size()-this._testNum;
+		this._trainCnt = (int)(this._QSessionList.size()*(1-testRatio));		
+		_testCorpus = getTestCorpus(minQFreForTest);
+		this._testCnt = _testCorpus.size();
 	}
 	//////////
 	//Necessary for click-model training & testing
@@ -124,7 +131,7 @@ public class MAnalyzer {
 		this._QSessionList = QSessionList;
 	}
 	
-	public void filterBySize(int maxQSessionSize){
+	public void adjustBySize(int maxQSessionSize){
 		
 		for(TQuery tQuery: this._QSessionList){
 			ArrayList<TUrl> tUrList = tQuery.getUrlList();
@@ -137,27 +144,36 @@ public class MAnalyzer {
 		}
 	}
 	
-	public void filterByQFre(int minQFre){
+	public ArrayList<TQuery> getTestCorpus(int minQFreForTest){
+		ArrayList<TQuery> testCorpus = new ArrayList<>();
 		
-		if(minQFre>1){
+		if(minQFreForTest > 1){
 			HashMap<String, StrInt> qFreMap = new HashMap<>();			
-			for(TQuery tQuery: this._QSessionList){
+			for(int qNum=1; qNum<=this._trainCnt; qNum++){
+				TQuery tQuery = this._QSessionList.get(qNum-1);
+				
 				String txt = tQuery.getQueryText();				
 				if(qFreMap.containsKey(txt)){
 					qFreMap.get(txt).intPlus1();
 				}else{
 					qFreMap.put(txt, new StrInt(txt));
-				}			
-			}
-			
-			ArrayList<TQuery> QSessionList = new ArrayList<>();		
-			for(TQuery tQuery: this._QSessionList){
-				if(qFreMap.get(tQuery.getQueryText()).getSecond() >= minQFre){
-					QSessionList.add(tQuery);
 				}
 			}
-			
-			this._QSessionList = QSessionList;
+			//
+			for(int k=this._trainCnt; k<this._QSessionList.size(); k++){
+				TQuery tQuery = this._QSessionList.get(k);
+				String q = tQuery.getQueryText();
+				if(qFreMap.containsKey(q) && qFreMap.get(q).getSecond() >= minQFreForTest){
+					testCorpus.add(tQuery);
+				}
+			}			
+			return testCorpus;			
+		}else{
+			System.out.println(this._QSessionList.size());
+			for(int k=this._trainCnt; k<this._QSessionList.size(); k++){
+				testCorpus.add(this._QSessionList.get(k));
+			}
+			return testCorpus;
 		}				
 	}
 	

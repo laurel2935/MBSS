@@ -13,8 +13,11 @@ public class TUrl {
 	////context information
 	//number of prior clicks
 	int _priorClicks;
-	//distance to last click, using a tiny value to indicate being the first click
-	double _disToLastClick;
+	//distance to last click
+	//type-1: using a tiny value to indicate being the first click
+	double _disToLastClick_tiny;
+	//type-2: ubm-style, i.e., no zero distance, if no prior click, then it is the rank position
+	int _disToLastClick_UBM;
 	
 	int _gTruthClick;
 	String _clickTime;
@@ -83,9 +86,10 @@ public class TUrl {
 		this._releValue = releVal;
 	}
 	
-	public void setContextInfor(int priorClicks, double disToLastClick){
+	public void setContextInfor(int priorClicks, double disToLastClick_tiny, int disToLastClick_UBM){
 		this._priorClicks = priorClicks;
-		this._disToLastClick = disToLastClick;
+		this._disToLastClick_tiny = disToLastClick_tiny;
+		this._disToLastClick_UBM  = disToLastClick_UBM;
 	}
 	
 	public void setReleFeatureVector(double [] rFeatureVector){
@@ -126,8 +130,12 @@ public class TUrl {
 		return this._priorClicks;
 	}
 	
-	public double getDisToLastClick(){
-		return this._disToLastClick;
+	public double getDistanceToLastClick_Tiny(){
+		return this._disToLastClick_tiny;
+	}
+	
+	public int getDistanceToLastClick_UBM(){
+		return this._disToLastClick_UBM;
 	}
 	
 	public String getUrl(){

@@ -92,17 +92,20 @@ public class TQuery {
 			int priorClicks = this.getPriorClicks(rankI).size();
 			int priorClickPos = this.getPriorClickPosition(rankI);
 			
-			double disToPriorClick;
+			double disToPriorClick_tiny;
+			int disToPriorClick_ubm;
+			
 			if(0 == priorClickPos){
-				disToPriorClick = MClickModel.EPSILON;
+				disToPriorClick_tiny = MClickModel.EPSILON;
+				disToPriorClick_ubm = rankI;
 			}else {
-				disToPriorClick = rankI-priorClickPos;
+				disToPriorClick_tiny = rankI-priorClickPos;
+				disToPriorClick_ubm = rankI-priorClickPos;
 			}
 			
-			tUrl.setContextInfor(priorClicks, disToPriorClick);
+			tUrl.setContextInfor(priorClicks, disToPriorClick_tiny, disToPriorClick_ubm);
 		}
 	}
-	
 	
 	public void calMarFeatureList(Boolean totalMar, boolean plusContextInfor){
 		if(totalMar){
@@ -146,7 +149,7 @@ public class TQuery {
 					int ctxt_PriorClicks = tUrl.getPriorClicks();
 					marFeatureVec.add((double)ctxt_PriorClicks);
 					//distance to prior click
-					double ctxt_DisToLastClick = tUrl.getDisToLastClick();
+					double ctxt_DisToLastClick = tUrl.getDistanceToLastClick_Tiny();
 					marFeatureVec.add(ctxt_DisToLastClick);	
 								
 					_gTruthBasedMarFeatureList.add(marFeatureVec);				
@@ -202,7 +205,7 @@ public class TQuery {
 				int ctxt_PriorClicks = tUrl.getPriorClicks();
 				marFeatureVec.add((double)ctxt_PriorClicks);
 				//distance to prior click
-				double ctxt_DisToLastClick = tUrl.getDisToLastClick();
+				double ctxt_DisToLastClick = tUrl.getDistanceToLastClick_Tiny();
 				marFeatureVec.add(ctxt_DisToLastClick);	
 							
 				_gTruthBasedMarFeatureList.add(marFeatureVec);
@@ -246,7 +249,7 @@ public class TQuery {
 				int ctxt_PriorClicks = tUrl.getPriorClicks();
 				releFeatureList.add((double)ctxt_PriorClicks);
 				//3 distance to prior click
-				double ctxt_DisToLastClick = tUrl.getDisToLastClick();
+				double ctxt_DisToLastClick = tUrl.getDistanceToLastClick_Tiny();
 				releFeatureList.add(ctxt_DisToLastClick);
 			}
 			
