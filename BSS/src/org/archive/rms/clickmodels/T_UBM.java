@@ -19,7 +19,6 @@ import optimizer.LBFGS.ExceptionWithIflag;
 
 import org.archive.rms.advanced.USMFrame;
 import org.archive.rms.advanced.USMFrame.FunctionType;
-import org.archive.rms.clickmodels.T_Evaluation.Mode;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 import org.archive.util.io.IOText;
@@ -1553,37 +1552,9 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		}
 	}
 	
-	public double getTestCorpusPerplexityAtK(boolean uniformCmp, int k){		
-		double corpusPerplexityAtK = 0.0;
-		int cnt = 0;
-		
-		for(TQuery tQuery: _testCorpus){		
-			if(skipQuerySession(tQuery, uniformCmp) || tQuery.getUrlList().size()<k){
-				continue;
-			}
-			
-			cnt++;
-			
-			if(_mode.equals(Mode.MarginalRele)){
-				corpusPerplexityAtK += getSessionGainAtK_MarginalRele(tQuery, k);
-			}else{
-				corpusPerplexityAtK += getSessionGainAtK(tQuery, k);
-			}
-		}
-		
-		corpusPerplexityAtK = -(corpusPerplexityAtK/cnt);
-		//the higher the worse
-		return Math.pow(2, corpusPerplexityAtK);
-	}
 	
-	public double getTestCorpusAvgPerplexity(boolean uniformCmp){
-		double avgPerplexity = 0.0;
-		for(int r=1; r<=_maxQSessionSize; r++){
-			avgPerplexity += getTestCorpusPerplexityAtK(uniformCmp, r);
-		}
-		
-		return avgPerplexity/_maxQSessionSize;
-	}
+	
+	
 	
 	
 	
@@ -1655,7 +1626,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		double priorGamma=0.5;
 		double priorMu=0.5;
 		//
-		Mode mode = Mode.Original;
+		Mode mode = Mode.MarginalRele;
 		//
 		boolean useFeature;		
 		if(mode.equals(Mode.Original)){

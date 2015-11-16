@@ -17,7 +17,6 @@ import org.archive.rms.clickmodels.T_Evaluation.Mode;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 import org.archive.util.io.IOText;
-import org.archive.util.tuple.StrInt;
 
 public abstract class FeatureModel extends MAnalyzer {
 	/**
@@ -524,6 +523,43 @@ public abstract class FeatureModel extends MAnalyzer {
 	
 	public abstract double getSessionProb(TQuery tQuery, boolean onlyClicks);
 	public abstract double getSessionProb_MarginalRele(TQuery tQuery);
+	
+	
+	
+	public double getTestCorpusAvgPerplexity(boolean uniformCmp){
+		double avgPerplexity = 0.0;
+		for(int r=1; r<=_maxQSessionSize; r++){
+			avgPerplexity += getTestCorpusPerplexityAtK(uniformCmp, r);
+		}
+		
+		return avgPerplexity/_maxQSessionSize;
+	}
+	
+	public double getTestCorpusPerplexityAtK(boolean uniformCmp, int k){		
+		double corpusPerplexityAtK = 0.0;
+		int cnt = 0;
+		
+		for(TQuery tQuery: _testCorpus){		
+			if(skipQuerySession(tQuery, uniformCmp) || tQuery.getUrlList().size()<k){
+				continue;
+			}
+			
+			cnt++;
+			
+			if(_mode.equals(Mode.MarginalRele)){
+				corpusPerplexityAtK += getSessionGainAtK_MarginalRele(tQuery, k);
+			}else{
+				corpusPerplexityAtK += getSessionGainAtK(tQuery, k);
+			}
+		}
+		
+		corpusPerplexityAtK = -(corpusPerplexityAtK/cnt);
+		//the higher the worse
+		return Math.pow(2, corpusPerplexityAtK);
+	}
+	
+	public abstract double getSessionGainAtK_MarginalRele(TQuery tQuery, int r);
+	public abstract double getSessionGainAtK(TQuery tQuery, int r);
 	
 	//
 	protected void getSeenQUPairs(){

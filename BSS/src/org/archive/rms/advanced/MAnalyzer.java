@@ -17,20 +17,14 @@ import org.archive.access.index.DocData.DocStyle;
 import org.archive.access.utility.SimpleTensor;
 import org.archive.nicta.kernel.LDAKernel;
 import org.archive.nicta.kernel.TFIDF_A1;
-import org.archive.rms.clickmodels.T_Evaluation.Mode;
 import org.archive.rms.data.BingQSession1;
 import org.archive.rms.data.DataAccessor;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 import org.archive.rms.data.TUser;
 import org.archive.util.io.IOText;
-import org.archive.util.tuple.Pair;
 import org.archive.util.tuple.StrInt;
 import org.ejml.simple.SimpleMatrix;
-
-import session.Query;
-import session.URL;
-import session.User;
 
 
 /**
@@ -115,6 +109,11 @@ public class MAnalyzer {
 		_testCorpus = getTestCorpus(minQFreForTest);
 		this._testCnt = _testCorpus.size();
 	}
+	
+	MAnalyzer(){
+		this._QSessionList = new ArrayList<>();
+	}
+	
 	//////////
 	//Necessary for click-model training & testing
 	//////////
@@ -735,7 +734,64 @@ public class MAnalyzer {
 	}
 	
 	
-	
+	//statistics
+	public void getStatistics(){
+		HashMap<String, StrInt> queryFreMap = new HashMap<>();
+		HashMap<String, StrInt> docFreMap = new HashMap<>();
+		
+		HashSet<String> clickedDocSet = new HashSet<>();
+		int totalClickCnt = 0;
+		
+		for(TQuery tQuery: this._QSessionList){
+			//1
+			String txt = tQuery.getQueryText();				
+			if(queryFreMap.containsKey(txt)){
+				queryFreMap.get(txt).intPlus1();
+			}else{
+				queryFreMap.put(txt, new StrInt(txt));
+			}
+			
+			//2
+			ArrayList<TUrl> tUrlList = tQuery.getUrlList();
+			for(TUrl tUrl: tUrlList){
+				String docno = tUrl.getDocNo();
+				if(docFreMap.containsKey(docno)){
+					docFreMap.get(docno).intPlus1();
+				}else{
+					docFreMap.put(docno, new StrInt(docno));
+				}
+				
+				if(tUrl.getGTruthClick() > 0){
+					totalClickCnt++;
+					
+					if(!clickedDocSet.contains(docno)){
+						clickedDocSet.add(docno);
+					}
+				}
+			}
+		}
+		
+		int totalQueries = 0;
+		int totalDoc = 0;
+		for(Entry<String, StrInt> qEntry: queryFreMap.entrySet()){
+			StrInt qElement = qEntry.getValue();
+			totalQueries += qElement.second;
+		}
+		for(Entry<String, StrInt> docEntry: docFreMap.entrySet()){
+			StrInt docElement = docEntry.getValue();
+			totalDoc += docElement.second;
+		}
+		System.out.println("Unique Q:\t"+queryFreMap.size());
+		System.out.println("Total  Q:\t"+totalQueries);
+		System.out.println();
+		System.out.println("Unique Doc:\t"+docFreMap.size());
+		System.out.println("Total  Doc:\t"+totalDoc);
+		System.out.println();
+		System.out.println("Total query sessions:\t"+this._QSessionList.size());
+		System.out.println();
+		System.out.println("Unique clicked Docs:\t"+clickedDocSet.size());
+		System.out.println("Total clicks:\t"+totalClickCnt);
+	}
 	
 	////
 	//main
@@ -758,12 +814,12 @@ public class MAnalyzer {
 		
 		//3 step-2 application
 		// buffer rele and mar features
-		///*
+		/*
 		boolean fieldSpecificLDA = true;
 		boolean useLoadedModel = false;
 		MAnalyzer mAnalyzer = new MAnalyzer(true, fieldSpecificLDA, useLoadedModel);
 		mAnalyzer.bufferFeatureVectors(false);
-		//*/
+		*/
 		
 		//4 step-3
 		/*
@@ -775,6 +831,12 @@ public class MAnalyzer {
 		
 		mAnalyzer.iniClickModel();
 		*/
+		
+		//5 get statistics of the data set
+		MAnalyzer mAnalyzer = new MAnalyzer();
+		mAnalyzer.LoadLog();
+		mAnalyzer.getStatistics();
+		
 		
 	}
 }

@@ -200,7 +200,7 @@ public class MClickModel extends USMFrame{
 	private void calFunctionGradient(double[] g){		
 		////rele part
 		double [] total_rele_parGradient = new double[version_1_releLength];		
-		for(int k=0; k<this._trainNum; k++){
+		for(int k=0; k<this._trainCnt; k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			
 			double [] rele_parGradient = tQuery.calRelePartialGradient(_funType);
@@ -221,7 +221,7 @@ public class MClickModel extends USMFrame{
 		
 		////mar part
 		double [] total_mar_parGradient = new double[version_1_marLength];		
-		for(int k=0; k<this._trainNum; k++){
+		for(int k=0; k<this._trainCnt; k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			
 			double [] mar_parGradient = tQuery.calMarPartialGradient(_funType);			
@@ -255,7 +255,7 @@ public class MClickModel extends USMFrame{
 			System.err.println("USM-similar models only use clicks!");
 		}
 		//
-		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
+		for(int k=this._trainCnt; k<this._QSessionList.size(); k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			calQSessionSatPros(tQuery);
 			
@@ -267,7 +267,7 @@ public class MClickModel extends USMFrame{
 		double [] testArray = getTestArray();
 		
 		int count = 0;
-		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
+		for(int k=this._trainCnt; k<this._QSessionList.size(); k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			double sessionPro = tQuery.getQSessionPro();
 			
@@ -290,13 +290,13 @@ public class MClickModel extends USMFrame{
 		//
 		updateOptimalParas(true, corpusLikelihood);
 		
-		System.out.println(count+" of "+_testNum);
+		System.out.println(count+" of "+_testCnt);
 		System.out.println(("Direct Product:\t"
-					+_testNum+"*"+USMFrame._MIN
-					+"="+_testNum*USMFrame._MIN));
+					+_testCnt+"*"+USMFrame._MIN
+					+"="+_testCnt*USMFrame._MIN));
 		System.out.println(("Comparison w.r.t. avgSessionPro{0.1} :\t"
-				+_testNum+"*"+Math.log(0.1)
-				+"="+_testNum*Math.log(0.1)));
+				+_testCnt+"*"+Math.log(0.1)
+				+"="+_testCnt*Math.log(0.1)));
 		
 		outputTestArray(testArray);
 		
@@ -613,17 +613,21 @@ public class MClickModel extends USMFrame{
 		}
 	}
 	
+	public double getTestCorpusAvgPerplexity(boolean uniformCmp){
+		return Double.NaN;
+	}
+	
 	///////
 	//
 	///////
 	public static void main(String []args){
 		//1
-		int maxQSessionSize = 15;
+		int maxQSessionSize = 10;
 		int minQFre = 1;
 		MClickModel mClickModel = new MClickModel(0.25, maxQSessionSize, minQFre);
 		mClickModel.train();
 		//0-7
 		//before normalizing -5092.38721036584
-		System.out.println(mClickModel.getTestCorpusProb(true, true));
+		System.out.println(mClickModel.getTestCorpusProb(false, true));
 	}
 }

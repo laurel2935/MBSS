@@ -67,7 +67,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	 * e.g., for consistent refresh w.r.t. both gradient and objectiveFunction
 	 * **/
 	protected void refresh(){
-		for(int i=0; i<this._trainNum; i++){
+		for(int i=0; i<this._trainCnt; i++){
 			TQuery tQuery = this._QSessionList.get(i);
 			calQSessionSatPros(tQuery);
 		}		
@@ -80,7 +80,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	protected double calObjFunctionValue(){
 		double objVal = 0.0;
 		
-		for(int i=0; i<this._trainNum; i++){
+		for(int i=0; i<this._trainCnt; i++){
 			TQuery tQuery = this._QSessionList.get(i);
 			
 			tQuery.calQSessionPro();	
@@ -172,7 +172,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 	
 	protected double [] getTestArray() {
 		int maxClickCount = 0;
-		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
+		for(int k=this._trainCnt; k<this._QSessionList.size(); k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			int cCount = tQuery.getClickCount();
 			
@@ -184,7 +184,7 @@ public abstract class USMFrame extends MAnalyzer implements T_Evaluation{
 		double [] testArray = new double [maxClickCount-1];
 		
 		ClickTypeCountArray = new int[maxClickCount-1];
-		for(int k=this._trainNum; k<this._QSessionList.size(); k++){
+		for(int k=this._trainCnt; k<this._QSessionList.size(); k++){
 			TQuery tQuery = this._QSessionList.get(k);
 			int cCount = tQuery.getClickCount();
 			
