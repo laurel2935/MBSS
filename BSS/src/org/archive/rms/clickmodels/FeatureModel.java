@@ -1,6 +1,8 @@
 package org.archive.rms.clickmodels;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -55,6 +57,8 @@ public abstract class FeatureModel extends MAnalyzer {
 	
 	protected static HashSet<String> _seenQUPairInTest = new HashSet<>();
 	protected static HashSet<String> _unseenQUPairInTest = new HashSet<>();
+	
+	protected static DecimalFormat resultFormat = new DecimalFormat("#.####");
     ////----
 	
 	
@@ -139,16 +143,43 @@ public abstract class FeatureModel extends MAnalyzer {
 		return optParameters;
 	}
 	
-	protected String getOptParaFileNameString() {
-	 String testParaStr = "_"+Integer.toString(_minQFreForTest)+"_"+Integer.toString(_maxQSessionSize);
-		String optParaFileName = null;
-		if(_mode == Mode.NaiveRele){
-			optParaFileName = FRoot._bufferParaDir+"UBM_NaiveReleParameter"+testParaStr+".txt";
-		}else{
-			optParaFileName = FRoot._bufferParaDir+"UBM_MarReleParameter_"+_marFeaVersion.toString()+testParaStr+".txt";
-		}
-		return optParaFileName;
+	protected void bufferParas(double minObjVale){
+		String targetFileName = getOptParaFileNameString();		
+		try {
+			File tmpFile = new File(targetFileName);
+			if(tmpFile.exists()){
+				double [] optParameters = loadCurrentOptimalParas();
+				if(optParameters[0] < minObjVale){
+					return;
+				}
+			}			
+			
+			BufferedWriter writer = IOText.getBufferedWriter_UTF8(targetFileName);		
+			//optimal objective value
+			writer.write(Double.toString(minObjVale));
+			writer.newLine();
+			//
+			for(double w: getModelParas()){
+				writer.write(Double.toString(w));
+				writer.newLine();
+			}			
+			writer.flush();
+			writer.close();			
+		} catch (Exception e) {
+			// TODO: handle exception
+			e.printStackTrace();
+		}		
 	}
+	
+	protected double [] getModelParas(){
+		if(_mode.equals(Mode.NaiveRele)){
+			return _naiveReleWeights;
+		}else{
+			return _twinWeights;
+		}
+	}
+	
+	protected abstract String getOptParaFileNameString();
 
 	////
 	protected void initialSteps(boolean useCurrentOptimal) {
@@ -453,7 +484,7 @@ public abstract class FeatureModel extends MAnalyzer {
 				}
 
 			} catch (ExceptionWithIflag ex){
-				System.err.println("[Warning]M-step cannot proceed!");
+				System.err.println("[Warning] M-step cannot proceed!");
 			}	
 			
 			//outputParas();
@@ -493,6 +524,7 @@ public abstract class FeatureModel extends MAnalyzer {
 	public double getTestCorpusProb(boolean onlyClicks, boolean uniformCmp){
 		getSeenVsUnseenInfor();
 				
+		_testCorpus = getTestCorpus(this._minQFreForTest);
 		double corpusLikelihood = 0.0;
 		
 		for(TQuery tQuery: _testCorpus){			
@@ -521,18 +553,83 @@ public abstract class FeatureModel extends MAnalyzer {
 		return corpusLikelihood;		
 	}
 	
+	public void getTestCorpusProb_vsQFreForTest(boolean onlyClicks, boolean uniformCmp){		
+		System.out.println("Log-likelihod vs QFreForTest [1-5]:");
+		
+		for(int fre=1; fre<=5; fre++){
+			
+			_testCorpus = getTestCorpus(fre);
+			
+			//
+			double corpusLikelihood = 0.0;
+			
+			for(TQuery tQuery: _testCorpus){			
+				if(skipQuerySession(tQuery, uniformCmp)){
+					continue;
+				}
+				
+				double sessionPro;
+				if(_mode.equals(Mode.MarginalRele)){
+					sessionPro = getSessionProb_MarginalRele(tQuery);
+				}else{
+					sessionPro = getSessionProb(tQuery, onlyClicks); 
+				}
+				
+				double logValue = Math.log(sessionPro);
+				if(Double.isNaN(logValue)){
+					System.out.println("Zero session pro error!");
+					System.out.println(sessionPro);
+					System.exit(0);
+				}
+				
+				corpusLikelihood += logValue;
+			}
+			
+			System.out.print(resultFormat.format(corpusLikelihood)+", ");
+		}
+		System.out.println();				
+	}
+	
 	public abstract double getSessionProb(TQuery tQuery, boolean onlyClicks);
 	public abstract double getSessionProb_MarginalRele(TQuery tQuery);
 	
 	
 	
 	public double getTestCorpusAvgPerplexity(boolean uniformCmp){
+		_testCorpus = getTestCorpus(this._minQFreForTest);
+		
 		double avgPerplexity = 0.0;
+		double perpAtK;
+		System.out.println("Perplexity at each position [1-10]:");
 		for(int r=1; r<=_maxQSessionSize; r++){
-			avgPerplexity += getTestCorpusPerplexityAtK(uniformCmp, r);
+			perpAtK = getTestCorpusPerplexityAtK(uniformCmp, r);
+			avgPerplexity += perpAtK;
+			System.out.print(resultFormat.format(perpAtK)+", ");
 		}
+		System.out.println();
 		
 		return avgPerplexity/_maxQSessionSize;
+	}
+	
+	public void getTestCorpusAvgPerplexity_vsQFreForTest(boolean uniformCmp){
+		System.out.println("AvgPerplexity vs QFreForTest [1-5]:");
+		
+		for(int fre=1; fre<=5; fre++){			
+			_testCorpus = getTestCorpus(fre);
+			//
+			//--
+			double avgPerplexity = 0.0;
+			double perpAtK;
+			for(int r=1; r<=_maxQSessionSize; r++){
+				perpAtK = getTestCorpusPerplexityAtK(uniformCmp, r);
+				avgPerplexity += perpAtK;
+			}			
+			avgPerplexity = avgPerplexity/_maxQSessionSize;
+			
+			System.out.print(resultFormat.format(avgPerplexity)+", ");
+		}
+		System.out.println();
+		
 	}
 	
 	public double getTestCorpusPerplexityAtK(boolean uniformCmp, int k){		

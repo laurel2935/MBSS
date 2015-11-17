@@ -1,7 +1,6 @@
 package org.archive.rms.clickmodels;
 
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -17,11 +16,11 @@ import java.util.Map.Entry;
 import optimizer.LBFGS;
 import optimizer.LBFGS.ExceptionWithIflag;
 
+import org.archive.access.feature.FRoot;
 import org.archive.rms.advanced.USMFrame;
 import org.archive.rms.advanced.USMFrame.FunctionType;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
-import org.archive.util.io.IOText;
 
 /**
  * 
@@ -1010,8 +1009,16 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			//2 > rFirstClick
 			for(int rank=firstC+1; rank<=tQuery.getUrlList().size(); rank++){
 				TUrl tUrl = tQuery.getUrlList().get(rank-1);
+				//method-1 
+				//double postMarRelePro = tUrl._postMarRelePro;
+				//method-2
+				double postMarRelePro;
+				if(tUrl.getGTruthClick() > 0){
+					postMarRelePro = 1;
+				}else{
+					postMarRelePro = 0;
+				}
 				
-				double postMarRelePro = tUrl._postMarRelePro;
 				double marRelePro = tQuery.calMarRelePro(rank, marReleWeights, _marFeaVersion);
 				
 				double var = Math.pow(marRelePro-postMarRelePro, 2);
@@ -1079,11 +1086,20 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			for(int rank=firstC+1; rank<=tQuery.getUrlList().size(); rank++){
 				TUrl tUrl = tQuery.getUrlList().get(rank-1);
 				
-				double postRelePro = tUrl._postMarRelePro;
+				//method-1 
+				//double postMarRelePro = tUrl._postMarRelePro;
+				//method-2
+				double postMarRelePro;
+				if(tUrl.getGTruthClick() > 0){
+					postMarRelePro = 1;
+				}else{
+					postMarRelePro = 0;
+				}
+				
 				double marRelePro = tQuery.calMarRelePro(rank, marReleWeights, _marFeaVersion);
 				
 				//1
-				double firstPart = 2*(marRelePro-postRelePro);
+				double firstPart = 2*(marRelePro-postMarRelePro);
 				//2
 				double releVal = tQuery.calMarReleVal(rank, marReleWeights);
 				double expVal = Math.exp(releVal);
@@ -1192,41 +1208,18 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		}		
 	}
 	
-	protected void bufferParas(double minObjVale){
-		String targetFileName = getOptParaFileNameString();		
-		try {
-			File tmpFile = new File(targetFileName);
-			if(tmpFile.exists()){
-				double [] optParameters = loadCurrentOptimalParas();
-				if(optParameters[0] < minObjVale){
-					return;
-				}
-			}			
-			
-			BufferedWriter writer = IOText.getBufferedWriter_UTF8(targetFileName);		
-			//optimal objective value
-			writer.write(Double.toString(minObjVale));
-			writer.newLine();
-			//
-			for(double w: getModelParas()){
-				writer.write(Double.toString(w));
-				writer.newLine();
-			}			
-			writer.flush();
-			writer.close();			
-		} catch (Exception e) {
-			// TODO: handle exception
-			e.printStackTrace();
-		}		
-	}
 	
-	protected double [] getModelParas(){
-		if(_mode.equals(Mode.NaiveRele)){
-			return _naiveReleWeights;
-		}else{
-			return _twinWeights;
+	protected String getOptParaFileNameString() {
+		 String testParaStr = "_"+Integer.toString(_minQFreForTest)+"_"+Integer.toString(_maxQSessionSize);
+			String optParaFileName = null;
+			if(_mode == Mode.NaiveRele){
+				optParaFileName = FRoot._bufferParaDir+"UBM_NaiveReleParameter"+testParaStr+".txt";
+			}else{
+				optParaFileName = FRoot._bufferParaDir+"UBM_MarReleParameter_"+_marFeaVersion.toString()+testParaStr+".txt";
+			}
+			return optParaFileName;
 		}
-	}
+	
 	
 	protected FunctionType getFunctionType() {
 		return _fType;
@@ -1626,7 +1619,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		double priorGamma=0.5;
 		double priorMu=0.5;
 		//
-		Mode mode = Mode.MarginalRele;
+		Mode mode = Mode.Original;
 		//
 		boolean useFeature;		
 		if(mode.equals(Mode.Original)){
@@ -1634,14 +1627,30 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		}else{
 			useFeature = true;
 		}		
+		
+		
+		boolean uniformCmp = true;
+		
 		///UBM and its variations
 		T_UBM t_UBM = new T_UBM(minQFreForTest, mode, maxQSessionSize, useFeature, testRatio,
 				priorAlpha, priorGamma, priorMu);
 		
 		t_UBM.train();
-		
-		System.out.println("Log-likelihood:\t"+t_UBM.getTestCorpusProb(false, true));
 		System.out.println();
-		System.out.println("Avg-perplexity:\t"+t_UBM.getTestCorpusAvgPerplexity(true));
+		System.out.println("----uniform evaluation----");
+		System.out.println("Log-likelihood:\t"+t_UBM.getTestCorpusProb(false, uniformCmp));
+		System.out.println();
+		t_UBM.getTestCorpusProb_vsQFreForTest(false, uniformCmp);
+		System.out.println();
+		System.out.println();
+		System.out.println("Avg-perplexity:\t"+t_UBM.getTestCorpusAvgPerplexity(uniformCmp));
+		t_UBM.getTestCorpusAvgPerplexity_vsQFreForTest(uniformCmp);
+		
+		System.out.println();
+		System.out.println();
+		System.out.println("----plus unobserved part evaluation----");
+		System.out.println("Log-likelihood:\t"+t_UBM.getTestCorpusProb(false, !uniformCmp));
+		System.out.println();
+		System.out.println("Avg-perplexity:\t"+t_UBM.getTestCorpusAvgPerplexity(!uniformCmp));
 	}
 }

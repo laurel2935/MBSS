@@ -168,7 +168,7 @@ public class MAnalyzer {
 			}			
 			return testCorpus;			
 		}else{
-			System.out.println(this._QSessionList.size());
+			//System.out.println(this._QSessionList.size());
 			for(int k=this._trainCnt; k<this._QSessionList.size(); k++){
 				testCorpus.add(this._QSessionList.get(k));
 			}
