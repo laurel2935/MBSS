@@ -69,7 +69,7 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 				
 				double postMarRelePro = tUrl.getGTruthClick()>0?1:0;
 				
-				double marRelePro = tQuery.calMarRelePro(rank, marReleWeights, _marFeaVersion);
+				double marRelePro = tQuery.calMarRelePro_Lambda(naiveReleWeights, rank, marReleWeights, _marFeaVersion);
 				
 				double var = Math.pow(marRelePro-postMarRelePro, 2);
 				
@@ -135,7 +135,7 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 				
 				double postMarRelePro = tUrl.getGTruthClick()>0?1:0;
 				
-				double marRelePro = tQuery.calMarRelePro(rank, marReleWeights, _marFeaVersion);
+				double marRelePro = tQuery.calMarRelePro_Lambda(naiveReleWeights, rank, marReleWeights, _marFeaVersion);
 				
 				//1
 				double firstPart = 2*(marRelePro-postMarRelePro);
@@ -237,7 +237,7 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 			
 			for(int r=rFirstClick+1; r<=tQuery.getUrlList().size(); r++){
 				TUrl tUrl = urlList.get(r-1);
-				tUrl._marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);
+				tUrl._marRelePro = tQuery.calMarRelePro_Lambda(naiveReleWeights, r, marReleWeights, _marFeaVersion);
 			}
 		}
 		
@@ -283,7 +283,7 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 			TUrl tUrl = urlList.get(r-1);
 			
 			if(tUrl.getGTruthClick() > 0){
-				double marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);
+				double marRelePro = tQuery.calMarRelePro_Lambda(getComponentOfNaiveReleWeight(), r, marReleWeights, _marFeaVersion);
 				
 				sessionProb *= marRelePro;
 				if(0 == sessionProb || sessionProb<0){
@@ -291,7 +291,7 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 					System.exit(0);
 				}
 			}else{
-				double marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);				
+				double marRelePro = tQuery.calMarRelePro_Lambda(getComponentOfNaiveReleWeight(), r, marReleWeights, _marFeaVersion);				
 				
 				sessionProb *= (1-marRelePro);
 				
@@ -340,11 +340,11 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 			double gainAtK;
 			
 			if(tUrl.getGTruthClick() > 0){
-				double marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);
+				double marRelePro = tQuery.calMarRelePro_Lambda(getComponentOfNaiveReleWeight(), r, marReleWeights, _marFeaVersion);
 				
 				gainAtK = (Math.log(marRelePro)/_log2);
 			}else{
-				double marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);				
+				double marRelePro = tQuery.calMarRelePro_Lambda(getComponentOfNaiveReleWeight(), r, marReleWeights, _marFeaVersion);				
 				
 				gainAtK = (Math.log(1-marRelePro)/_log2);				
 			}	
@@ -395,7 +395,7 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 					_alpha.put(key, alphaV);
 					return alphaV;
 				}else{
-					double marRelePro = tQuery.calMarRelePro(tUrl.getRankPosition(), getComponentOfMarReleWeight(), _marFeaVersion);
+					double marRelePro = tQuery.calMarRelePro_Lambda(getComponentOfNaiveReleWeight(), tUrl.getRankPosition(), getComponentOfMarReleWeight(), _marFeaVersion);
 					return marRelePro;
 				}				
 			}else{
@@ -453,7 +453,7 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 		int minQFreForTest = 1;
 	
 		//
-		Mode mode = Mode.MarginalRele;
+		Mode mode = Mode.NaiveRele;
 		//
 		boolean useFeature;		
 		if(mode.equals(Mode.Original)){
@@ -470,11 +470,18 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 		
 		logisticRegression.train();
 		
-		System.out.println("----uniform evaluation----");
-		System.out.println("Log-likelihood:\t"+logisticRegression.getTestCorpusProb(false, true));
 		System.out.println();
-		System.out.println("Avg-perplexity:\t"+logisticRegression.getTestCorpusAvgPerplexity(true));
+		System.out.println("----uniform evaluation----");
+		System.out.println("Log-likelihood:\t"+logisticRegression.getTestCorpusProb(false, uniformCmp));
+		System.out.println();
+		logisticRegression.getTestCorpusProb_vsQFreForTest(false, uniformCmp);
+		System.out.println();
+		System.out.println();
+		System.out.println("Avg-perplexity:\t"+logisticRegression.getTestCorpusAvgPerplexity(uniformCmp));
+		logisticRegression.getTestCorpusAvgPerplexity_vsQFreForTest(uniformCmp);
 		
+		System.out.println();
+		System.out.println();
 		System.out.println("----plus unobserved part evaluation----");
 		System.out.println("Log-likelihood:\t"+logisticRegression.getTestCorpusProb(false, !uniformCmp));
 		System.out.println();

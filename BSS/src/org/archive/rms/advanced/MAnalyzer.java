@@ -84,6 +84,9 @@ public class MAnalyzer {
 		
 	}
 	
+	//for comparing UBM and DBN
+	private static boolean _useAll = false;
+	private static int _minQFreForSparcityCmp = 1;
 	
 	protected MAnalyzer(int minQFreForTest, double testRatio, boolean useFeature, int maxQSessionSize){
 		this._testRatio = testRatio;
@@ -92,7 +95,7 @@ public class MAnalyzer {
 		
 		this._QSessionList = new ArrayList<>();
 		//search log
-		LoadLog();
+		LoadLog(_useAll);
 				
 		//features
 		if(useFeature){
@@ -173,6 +176,32 @@ public class MAnalyzer {
 				testCorpus.add(this._QSessionList.get(k));
 			}
 			return testCorpus;
+		}				
+	}
+	
+	public ArrayList<TQuery> filterCorpus(int _minQFreForSparcityCmp){
+		ArrayList<TQuery> corpus = new ArrayList<>();
+		
+		if(_minQFreForSparcityCmp > 1){
+			HashMap<String, StrInt> qFreMap = new HashMap<>();			
+			for(TQuery tQuery: this._QSessionList){				
+				String txt = tQuery.getQueryText();				
+				if(qFreMap.containsKey(txt)){
+					qFreMap.get(txt).intPlus1();
+				}else{
+					qFreMap.put(txt, new StrInt(txt));
+				}
+			}
+			//
+			for(TQuery tQuery: this._QSessionList){
+				String q = tQuery.getQueryText();
+				if(qFreMap.containsKey(q) && qFreMap.get(q).getSecond() >= _minQFreForSparcityCmp){
+					corpus.add(tQuery);
+				}
+			}			
+			return corpus;			
+		}else{
+			return this._QSessionList;
 		}				
 	}
 	
@@ -265,23 +294,41 @@ public class MAnalyzer {
 		this._rawSearchLogFile = rawSearchLogFile;
 	}
 	
-	protected void LoadLog(){
+	protected void LoadLog(boolean useAll){
 		setSearchLogFile(FRoot._file_UsedSearchLog);
 		
 		ArrayList<BingQSession1> bingQSessionList = DataAccessor.loadSearchLog(_rawSearchLogFile);
 		
-		int sessionCount = 0;
+		//int sessionCount = 0;
 		ArrayList<TQuery> tQueryList = new ArrayList<>();
-		for(BingQSession1 bQSession: bingQSessionList){
-			TQuery tQuery = new TQuery(bQSession);
-			if(acceptSession(tQuery, true)){
+		
+		if(useAll){
+			for(BingQSession1 bQSession: bingQSessionList){
+				TQuery tQuery = new TQuery(bQSession);
+				
 				tQueryList.add(tQuery);
-				sessionCount++;
+				//sessionCount++;
+			}
+		}else{
+			for(BingQSession1 bQSession: bingQSessionList){
+				TQuery tQuery = new TQuery(bQSession);
+				
+				if(acceptSession(tQuery, true)){
+					tQueryList.add(tQuery);
+					//sessionCount++;
+				}
 			}
 		}
 		
+		
+		
 		this._QSessionList.addAll(tQueryList);
-		this._totalAcceptedSessions = sessionCount;	
+		
+		if(_minQFreForSparcityCmp > 1){
+			this._QSessionList = filterCorpus(_minQFreForSparcityCmp);
+		}
+		
+		this._totalAcceptedSessions = this._QSessionList.size();	
 		
 		System.out.println("Total number of used sessions:\t"+_totalAcceptedSessions);
 	}
@@ -833,9 +880,11 @@ public class MAnalyzer {
 		*/
 		
 		//5 get statistics of the data set
+		/*
 		MAnalyzer mAnalyzer = new MAnalyzer();
 		mAnalyzer.LoadLog();
 		mAnalyzer.getStatistics();
+		*/
 		
 		
 	}

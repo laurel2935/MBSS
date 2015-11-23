@@ -8,6 +8,7 @@ import org.archive.rms.advanced.MAnalyzer;
 import org.archive.rms.advanced.MClickModel;
 import org.archive.rms.advanced.USMFrame;
 import org.archive.rms.advanced.USMFrame.FunctionType;
+import org.archive.rms.clickmodels.FeatureModel;
 import org.archive.rms.clickmodels.FeatureModel.MarFeaVersion;
 import org.ejml.simple.SimpleMatrix;
 
@@ -107,11 +108,11 @@ public class TQuery {
 		}
 	}
 	
-	public void calMarFeatureList(Boolean totalMar, boolean plusContextInfor){
+	public void calMarFeatureList(Boolean totalMar, boolean plusContextInfor, MarStyle marStyle){
 		if(totalMar){
-			calMarFeatureList_Total(plusContextInfor);
+			calMarFeatureList_Total(plusContextInfor, marStyle);
 		}else{
-			calMarFeatureList_Partial(plusContextInfor);
+			calMarFeatureList_Partial(plusContextInfor, marStyle);
 		}
 	}
 	
@@ -119,7 +120,7 @@ public class TQuery {
 	 * do not calculate marginally relevant features considering the skipped document
 	 * ever used for testing cumulative utility based methods
 	 * **/
-	private void calMarFeatureList_Partial(boolean plusContextInfor){
+	private void calMarFeatureList_Partial(boolean plusContextInfor, MarStyle marStyle){
 		this._gTruthBasedMarFeatureList = new ArrayList<>();
 		
 		int firstC = getFirstClickPosition();
@@ -135,7 +136,7 @@ public class TQuery {
 					ArrayList<Double> marFeatureVec = new ArrayList<>();
 					
 					//marginal features based on 3-dimension tensor
-					double [] partialMarFeatureVector = calPartialMarFeature(rank, MClickModel._defaultMarStyle);
+					double [] partialMarFeatureVector = calPartialMarFeature(rank, marStyle);
 					for(int i=0; i<partialMarFeatureVector.length; i++){					
 						marFeatureVec.add(partialMarFeatureVector[i]);
 					}
@@ -163,7 +164,7 @@ public class TQuery {
 					ArrayList<Double> marFeatureVec = new ArrayList<>();
 					
 					//marginal features based on 3-dimension tensor
-					double [] partialMarFeatureVector = calPartialMarFeature(rank, MClickModel._defaultMarStyle);
+					double [] partialMarFeatureVector = calPartialMarFeature(rank, marStyle);
 					for(int i=0; i<partialMarFeatureVector.length; i++){					
 						marFeatureVec.add(partialMarFeatureVector[i]);
 					}	
@@ -178,7 +179,7 @@ public class TQuery {
 	/**
 	 * calculate marginally relevant features for skipped documents
 	 * **/
-	private void calMarFeatureList_Total(boolean plusContextInfor){
+	private void calMarFeatureList_Total(boolean plusContextInfor, MarStyle marStyle){
 		this._gTruthBasedMarFeatureList = new ArrayList<>();
 		
 		int firstC = getFirstClickPosition();
@@ -191,7 +192,7 @@ public class TQuery {
 				ArrayList<Double> marFeatureVec = new ArrayList<>();
 				
 				//marginal features based on 3-dimension tensor
-				double [] partialMarFeatureVector = calPartialMarFeature(rank, MClickModel._defaultMarStyle);
+				double [] partialMarFeatureVector = calPartialMarFeature(rank, marStyle);
 				for(int i=0; i<partialMarFeatureVector.length; i++){					
 					marFeatureVec.add(partialMarFeatureVector[i]);
 				}
@@ -215,7 +216,7 @@ public class TQuery {
 				ArrayList<Double> marFeatureVec = new ArrayList<>();
 				
 				//marginal features based on 3-dimension tensor
-				double [] partialMarFeatureVector = calPartialMarFeature(rank, MClickModel._defaultMarStyle);
+				double [] partialMarFeatureVector = calPartialMarFeature(rank, marStyle);
 				for(int i=0; i<partialMarFeatureVector.length; i++){					
 					marFeatureVec.add(partialMarFeatureVector[i]);
 				}	
@@ -958,7 +959,7 @@ public class TQuery {
 		return marReleVal;
 	}
 	
-	public double calMarRelePro(int rankPosition, double [] mar_weights, MarFeaVersion version){
+	public double calMarRelePro_NoLambda(int rankPosition, double [] mar_weights, MarFeaVersion version){
 		double [] marFeatureArray;
 		if(version.equals(MarFeaVersion.V1)){
 			ArrayList<Double> marFeatureList = this._gTruthBasedMarFeatureList.get(rankPosition-1);
@@ -969,6 +970,22 @@ public class TQuery {
 		
 		double marReleVal = USMFrame.calFunctionVal(marFeatureArray, mar_weights, FunctionType.LINEAR);
 		double marRelePro = USMFrame.logistic(marReleVal);
+		return marRelePro;
+	}
+	
+	public double calMarRelePro_Lambda(double [] rele_weights, int rankPosition, double [] mar_weights, MarFeaVersion version){
+		double [] marFeatureArray;
+		if(version.equals(MarFeaVersion.V1)){
+			ArrayList<Double> marFeatureList = this._gTruthBasedMarFeatureList.get(rankPosition-1);
+			marFeatureArray = MAnalyzer.toDArray(marFeatureList);
+		}else{
+			marFeatureArray = getMarFeature_Join(rankPosition);
+		}		
+		
+		double marReleVal = USMFrame.calFunctionVal(marFeatureArray, mar_weights, FunctionType.LINEAR);
+		TUrl tUrl = _urlList.get(rankPosition-1);
+		double releVal = tUrl.calReleVal(rele_weights);
+		double marRelePro = USMFrame.logistic(FeatureModel._lambda*releVal+(1-FeatureModel._lambda)*marReleVal);
 		return marRelePro;
 	}
 	

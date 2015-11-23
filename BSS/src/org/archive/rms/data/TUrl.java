@@ -74,6 +74,11 @@ public class TUrl {
 		return this._relePro;
 	}
 	
+	public double calReleVal(double [] rele_weights){
+		double releVal = USMFrame.calFunctionVal(_rFeatureVector, rele_weights, FunctionType.LINEAR);		
+		return releVal;
+	}
+	
 	public int getRankPosition(){
 		return this._rankPostion;
 	}

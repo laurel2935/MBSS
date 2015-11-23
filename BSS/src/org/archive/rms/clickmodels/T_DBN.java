@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Random;
 
+import org.archive.access.feature.FRoot;
 import org.archive.rms.advanced.USMFrame;
 import org.archive.rms.advanced.USMFrame.FunctionType;
 import org.archive.rms.data.TQuery;
@@ -109,7 +110,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		while(step++<iter && diff>tol){
 			//E-step
 			//training parts
-			for(int qNum=1; qNum<=this._trainNum; qNum++){
+			for(int qNum=1; qNum<=this._trainCnt; qNum++){
 				TQuery tQuery = this._QSessionList.get(qNum-1);
 				ArrayList<TUrl> urlList = tQuery.getUrlList();
 				
@@ -235,35 +236,60 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 	
 	@Override
 	public double getClickProb(TQuery tQuery, TUrl tUrl) {
+		/*
 		_param para = lookupURL(tQuery, tUrl, false, true);
 		if (para!=null)//existing one
 			return 2 * para.m_a * para.m_s;
 		else//totally a new one
 			return 2 * (m_alpha_a-1)/(m_alpha_a+m_beta_a-2) * (m_alpha_s-1)/(m_alpha_s+m_beta_s-2) + m_rand.nextDouble()/10;
+		*/
+		return Double.NaN;
+	}
+	
+	public double getClickProbAtK(TQuery tQuery, int rankPosition) {		
+		if(1 == rankPosition){
+			TUrl tUrl = tQuery.getUrlList().get(rankPosition-1);
+			_param param = lookupURL(tQuery, tUrl, false, true);
+			return param.m_a;
+		}else {
+			double clickPro = 1.0;
+			
+			for(int r=1; r<=rankPosition-1; r++){				
+				TUrl tUrl = tQuery.getUrlList().get(r-1);
+				_param param = lookupURL(tQuery, tUrl, false, true);
+				if(tUrl.getGTruthClick() > 0){
+					clickPro *= (param.m_a*(1-param.m_s));
+				}else{
+					clickPro *= (1-param.m_a);
+				}
+				
+				clickPro *= m_gamma;
+			}
+			
+			TUrl tUrl = tQuery.getUrlList().get(rankPosition-1);
+			_param param = lookupURL(tQuery, tUrl, false, true);
+			return clickPro*=param.m_a;
+		}		
 	}
 		
 	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
 		double sessionProb = 1.0;
 		
-		ArrayList<TUrl> urlList = tQuery.getUrlList();
-		
-		//starts from the final click
-		int rFinalClick = tQuery.getLastClickPosition();
-		if(rFinalClick-1 < 0){
-			System.out.println(tQuery.getClickCount());
-			System.out.println(tQuery.getGTruthClickSequence());
-			for(TUrl tUrl: tQuery.getUrlList()){
-				System.out.print(tUrl.getGTruthClick()+" ");
-			}
-			System.exit(0);
+		//starts from the last click
+		ArrayList<TUrl> urlList = tQuery.getUrlList();		
+		int rLast = urlList.size();
+		TUrl lastUrl = urlList.get(rLast-1);
+		_param lastParam = lookupURL(tQuery, lastUrl, false, true);
+		if(lastUrl.getGTruthClick()>0){
+			//satisfied
+			sessionProb *= (lastParam.m_a*lastParam.m_s);
+		}else{
+			//abandonment
+			sessionProb *= ((1-lastParam.m_a)*(1-m_gamma));
 		}
-		TUrl finallyClickedUrl = urlList.get(rFinalClick-1);
-		_param finalParam = lookupURL(tQuery, finallyClickedUrl, false, true);		
-		sessionProb *= (finalParam.m_a*finalParam.m_s);
-				
-		for(int r=rFinalClick-1; r>=1; r--){
-			//without the 1sr position
-			if(r>1){
+		////part-2				
+		for(int r=rLast-1; r>=1; r--){
+			if(r>=1){
 				sessionProb *= m_gamma;
 			}
 			//
@@ -273,7 +299,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 			if(tUrl.getGTruthClick() > 0){
 				sessionProb *= (param.m_a*(1-param.m_s));
 			}else{
-				sessionProb *= ((1-param.m_a)*(1-param.m_s));
+				sessionProb *= (1-param.m_a);
 			}			
 		}
 		
@@ -290,7 +316,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 	protected double calMinObjFunctionValue_NaiveRele(){
 		double objVal = 0.0;
 		
-		for(int i=0; i<this._trainNum; i++){
+		for(int i=0; i<this._trainCnt; i++){
 			TQuery tQuery = this._QSessionList.get(i);
 			
 			for(TUrl tUrl: tQuery.getUrlList()){
@@ -311,7 +337,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		return Double.NaN;
 	}
 	protected void calFunctionGradient_NaiveRele(double[] g){	
-		for(int i=0; i<this._trainNum; i++){
+		for(int i=0; i<this._trainCnt; i++){
 			TQuery tQuery = this._QSessionList.get(i);			
 			
 			for(TUrl tUrl: tQuery.getUrlList()){						
@@ -341,7 +367,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		//avoid duplicate update
 		HashSet<String> releKeySet = new HashSet<>();
 		
-		for(int i=0; i<this._trainNum; i++){
+		for(int i=0; i<this._trainCnt; i++){
 			TQuery tQuery = this._QSessionList.get(i);			
 			
 			for(TUrl tUrl: tQuery.getUrlList()){						
@@ -368,6 +394,17 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 	}
 	protected void updateAlpha_MarginalRele(){}
 	
+	protected String getOptParaFileNameString() {
+		 String testParaStr = "_"+Integer.toString(_minQFreForTest)+"_"+Integer.toString(_maxQSessionSize);
+			String optParaFileName = null;
+			if(_mode == Mode.NaiveRele){
+				optParaFileName = FRoot._bufferParaDir+"DBN_NaiveReleParameter"+testParaStr+".txt";
+			}else{
+				optParaFileName = FRoot._bufferParaDir+"DBN_MarReleParameter_"+_marFeaVersion.toString()+"_"+_defaultMarStyle.toString()+"_"+_lambda+testParaStr+".txt";
+			}
+			return optParaFileName;
+	}
+	
 	protected void getStats_Static(){}
 	protected void getStats_MarginalRele(){}
 	public double getSessionProb_MarginalRele(TQuery tQuery){
@@ -375,6 +412,42 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 	}
 	protected FunctionType getFunctionType() {
 		return _fType;
+	}
+	
+	
+	public double getSessionGainAtK(TQuery tQuery, int r){				
+		double gainAtK;
+		
+		ArrayList<TUrl> urlList = tQuery.getUrlList();
+		TUrl tUrl = urlList.get(r-1);
+		
+		if(tUrl.getGTruthClick() > 0){			
+			if(1 == r){
+				double alpha_qu = getClickProbAtK(tQuery, 1);
+				gainAtK = (Math.log(alpha_qu)/_log2);
+			}else{
+				double alpha_qu = getClickProbAtK(tQuery, r);				
+				gainAtK = (Math.log(alpha_qu)/_log2);					
+			}					
+		}else{
+			if(1 == r){
+				double alpha_qu = getClickProbAtK(tQuery, 1);
+				if(1 == alpha_qu){
+					alpha_qu = 0.9;
+				}
+				
+				gainAtK = (Math.log(1-alpha_qu)/_log2);
+			}else{
+				double alpha_qu = getClickProbAtK(tQuery, r);
+				gainAtK = (Math.log(1-alpha_qu)/_log2);
+			}					
+		}
+		
+		return gainAtK;
+	}
+	
+	public double getSessionGainAtK_MarginalRele(TQuery tQuery, int r){
+		return Double.NaN;
 	}
 	
 	protected void estimateParas() {
@@ -434,9 +507,9 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		
 		double testRatio = 0.25;
 		int maxQSessionSize = 10;
-		int minQFre = 2;
+		int minQFreForTest = 1;
 
-		Mode mode = Mode.NaiveRele;
+		Mode mode = Mode.Original;
 		
 		boolean useFeature;
 		
@@ -446,12 +519,30 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 			useFeature = true;
 		}
 		
+		boolean uniformCmp = true;
+		
 		// due to the fact of serious sparcity problem!!!!, is it ok to be used as a baseline?
-		T_DBN DBN = new T_DBN(maxQSessionSize, mode, useFeature, minQFre, testRatio,
+		T_DBN DBN = new T_DBN(maxQSessionSize, mode, useFeature, minQFreForTest, testRatio,
 				gamma, alpha_a, beta_a, alpha_s, beta_s);
 		
 		DBN.train();
 		
-		System.out.println(DBN.getTestCorpusProb(false, true));
+		//System.out.println(DBN.getTestCorpusProb(false, true));
+		System.out.println();
+		System.out.println("----uniform evaluation----");
+		System.out.println("Log-likelihood:\t"+DBN.getTestCorpusProb(false, uniformCmp));
+		System.out.println();
+		DBN.getTestCorpusProb_vsQFreForTest(false, uniformCmp);
+		System.out.println();
+		System.out.println();
+		System.out.println("Avg-perplexity:\t"+DBN.getTestCorpusAvgPerplexity(uniformCmp));
+		DBN.getTestCorpusAvgPerplexity_vsQFreForTest(uniformCmp);
+		
+		System.out.println();
+		System.out.println();
+		System.out.println("----plus unobserved part evaluation----");
+		System.out.println("Log-likelihood:\t"+DBN.getTestCorpusProb(false, !uniformCmp));
+		System.out.println();
+		System.out.println("Avg-perplexity:\t"+DBN.getTestCorpusAvgPerplexity(!uniformCmp));
 	}
 }

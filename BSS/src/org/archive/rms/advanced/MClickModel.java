@@ -43,7 +43,7 @@ public class MClickModel extends USMFrame{
 	 * **/	
 	
 	
-	public static MarStyle _defaultMarStyle = MarStyle.MIN;
+	private static MarStyle _defaultMarStyle = MarStyle.MIN;
 	
 	private static final FunctionType _funType = FunctionType.EXP;
 		
@@ -119,7 +119,7 @@ public class MClickModel extends USMFrame{
 			tQuery.setMarTensor(key2MarFeatureMap.get(qKey));
 			
 			//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently						
-			tQuery.calMarFeatureList(false, true);			
+			tQuery.calMarFeatureList(false, true, _defaultMarStyle);			
 		}
 	}
 	
@@ -242,7 +242,7 @@ public class MClickModel extends USMFrame{
 	}
 
 	public double getSessionProb(TQuery tQuery, boolean onlyClicks){
-		tQuery.calMarFeatureList(false, true);
+		tQuery.calMarFeatureList(false, true, _defaultMarStyle);
 		
 		tQuery.calQSessionPro();
 		

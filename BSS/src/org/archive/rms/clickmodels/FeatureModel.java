@@ -18,6 +18,7 @@ import org.archive.rms.advanced.USMFrame.FunctionType;
 import org.archive.rms.clickmodels.T_Evaluation.Mode;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
+import org.archive.rms.data.TQuery.MarStyle;
 import org.archive.util.io.IOText;
 
 public abstract class FeatureModel extends MAnalyzer {
@@ -42,10 +43,13 @@ public abstract class FeatureModel extends MAnalyzer {
 	//i.e., when computing marginal utility, both marginal features and relevance features are used.
 	protected static int _twinFeatureLen_v_2 = 13 + 13 + 6;
 	
+	protected static MarStyle _defaultMarStyle = MarStyle.AVG;
+	
 	public enum MarFeaVersion {V1, V2};
 	protected MarFeaVersion _marFeaVersion = MarFeaVersion.V1;
+	public static double _lambda = 0.1;
 	
-	protected static double _defaultWeightScale = 50;
+	protected static double _defaultWeightScale = 100;
 	protected static double _minObjValue;
 	protected static final double _log2 = Math.log(2.0);
 	
@@ -223,7 +227,7 @@ public abstract class FeatureModel extends MAnalyzer {
 				tQuery.setMarTensor(key2MarFeatureMap.get(qKey));
 				
 				//should be called ahead of tQuery.calMarFeatureList() since the context features will used subsequently						
-				tQuery.calMarFeatureList(true, false);			
+				tQuery.calMarFeatureList(true, false, _defaultMarStyle);			
 			}
 			//3
 			normalizeFeatures_MarginalRele();
@@ -553,10 +557,11 @@ public abstract class FeatureModel extends MAnalyzer {
 		return corpusLikelihood;		
 	}
 	
-	public void getTestCorpusProb_vsQFreForTest(boolean onlyClicks, boolean uniformCmp){		
-		System.out.println("Log-likelihod vs QFreForTest [1-5]:");
+	public void getTestCorpusProb_vsQFreForTest(boolean onlyClicks, boolean uniformCmp){	
+		int freT = 10;
+		System.out.println("Log-likelihod vs QFreForTest [1-"+freT+"]:");
 		
-		for(int fre=1; fre<=5; fre++){
+		for(int fre=1; fre<=freT; fre++){
 			
 			_testCorpus = getTestCorpus(fre);
 			
@@ -612,9 +617,10 @@ public abstract class FeatureModel extends MAnalyzer {
 	}
 	
 	public void getTestCorpusAvgPerplexity_vsQFreForTest(boolean uniformCmp){
-		System.out.println("AvgPerplexity vs QFreForTest [1-5]:");
+		int freT = 10;
+		System.out.println("AvgPerplexity vs QFreForTest [1-"+freT+"]:");
 		
-		for(int fre=1; fre<=5; fre++){			
+		for(int fre=1; fre<=freT; fre++){			
 			_testCorpus = getTestCorpus(fre);
 			//
 			//--

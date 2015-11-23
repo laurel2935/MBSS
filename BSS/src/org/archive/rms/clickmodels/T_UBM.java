@@ -776,7 +776,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		    			
 		    			rLastClick = tUrl.getRankPosition();
 		    		}else{
-		    			double marRelePro = tQuery.calMarRelePro(r, getComponentOfMarReleWeight(), _marFeaVersion);
+		    			double marRelePro = tQuery.calMarRelePro_Lambda(getComponentOfNaiveReleWeight(), r, getComponentOfMarReleWeight(), _marFeaVersion);
 		    			_gamma_new[r-1][r-rLastClick] += (1-marRelePro)*m_gamma[r-1][r-rLastClick] / (1.0-marRelePro*m_gamma[r-1][r-rLastClick]);
 		    		}
 		    	}
@@ -1019,7 +1019,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 					postMarRelePro = 0;
 				}
 				
-				double marRelePro = tQuery.calMarRelePro(rank, marReleWeights, _marFeaVersion);
+				double marRelePro = tQuery.calMarRelePro_Lambda(naiveReleWeights, rank, marReleWeights, _marFeaVersion);
 				
 				double var = Math.pow(marRelePro-postMarRelePro, 2);
 				
@@ -1096,7 +1096,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 					postMarRelePro = 0;
 				}
 				
-				double marRelePro = tQuery.calMarRelePro(rank, marReleWeights, _marFeaVersion);
+				double marRelePro = tQuery.calMarRelePro_Lambda(naiveReleWeights, rank, marReleWeights, _marFeaVersion);
 				
 				//1
 				double firstPart = 2*(marRelePro-postMarRelePro);
@@ -1186,7 +1186,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			
 			for(int r=rFirstClick+1; r<=tQuery.getUrlList().size(); r++){
 				TUrl tUrl = urlList.get(r-1);
-				tUrl._marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);
+				tUrl._marRelePro = tQuery.calMarRelePro_Lambda(naiveReleWeights, r, marReleWeights, _marFeaVersion);
 			}
 		}
 	}	
@@ -1205,6 +1205,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			EM_MarRele(40, 1e-8);
 		}else{
 			EM_SingleBrowsingModel(40, 1e-8);
+			//EM_MultipleBrowsingModel(40, 1e-8);
 		}		
 	}
 	
@@ -1215,10 +1216,10 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			if(_mode == Mode.NaiveRele){
 				optParaFileName = FRoot._bufferParaDir+"UBM_NaiveReleParameter"+testParaStr+".txt";
 			}else{
-				optParaFileName = FRoot._bufferParaDir+"UBM_MarReleParameter_"+_marFeaVersion.toString()+testParaStr+".txt";
+				optParaFileName = FRoot._bufferParaDir+"UBM_MarReleParameter_"+_marFeaVersion.toString()+"_"+_defaultMarStyle.toString()+"_"+_lambda+testParaStr+".txt";
 			}
 			return optParaFileName;
-		}
+	}
 	
 	
 	protected FunctionType getFunctionType() {
@@ -1234,7 +1235,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 				return getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
 			}else{
 				double [] marReleWeights   = getComponentOfMarReleWeight();
-				return tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);
+				return tQuery.calMarRelePro_Lambda(getComponentOfNaiveReleWeight(), r, marReleWeights, _marFeaVersion);
 			}
 		}else{
 			return getAlpha_Ext(tQuery, tUrl, false, _mode, false, true);
@@ -1321,6 +1322,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 						sessionProb *= (alpha_qu*curGamma);
 						if(0 == sessionProb){
 							System.out.println("2 > 0 alpha_qu:\t"+alpha_qu);
+							System.out.println(getComponentOfNaiveReleWeight());
 							System.exit(0);
 						}
 					}					
@@ -1348,6 +1350,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 						sessionProb *= (1-alpha_qu*curGamma);
 						if(0 == sessionProb){
 							System.out.println("2 =0 alpha_qu:\t"+alpha_qu);
+							System.out.println(getComponentOfMarReleWeight());
 							System.exit(0);
 						}
 					}					
@@ -1430,7 +1433,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			int dis = tUrl.getDistanceToLastClick_UBM();
 			
 			if(tUrl.getGTruthClick() > 0){
-				double marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);
+				double marRelePro = tQuery.calMarRelePro_Lambda(getComponentOfNaiveReleWeight(), r, marReleWeights, _marFeaVersion);
 				
 				double curGamma = m_gamma[r-1][dis];
 				if(0 == curGamma){
@@ -1440,10 +1443,14 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 				sessionProb *= (marRelePro*curGamma);
 				if(0 == sessionProb || sessionProb<0){
 					System.out.println("2 > 0 >rFirstClick alpha_qu:\t"+marRelePro);
+					for(double w: marReleWeights){
+						System.out.print(w+" ");
+					}
+					System.out.println();
 					System.exit(0);
 				}
 			}else{
-				double marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);				
+				double marRelePro = tQuery.calMarRelePro_Lambda(getComponentOfNaiveReleWeight(), r, marReleWeights, _marFeaVersion);				
 				
 				double curGamma = m_gamma[r-1][dis];
 				if(0 == curGamma){
@@ -1522,7 +1529,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			double gainAtK;
 			
 			if(tUrl.getGTruthClick() > 0){
-				double marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);
+				double marRelePro = tQuery.calMarRelePro_Lambda(getComponentOfNaiveReleWeight(), r, marReleWeights, _marFeaVersion);
 				
 				double curGamma = m_gamma[r-1][dis];
 				if(0 == curGamma){
@@ -1531,7 +1538,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 				
 				gainAtK = (Math.log(marRelePro*curGamma)/_log2);
 			}else{
-				double marRelePro = tQuery.calMarRelePro(r, marReleWeights, _marFeaVersion);				
+				double marRelePro = tQuery.calMarRelePro_Lambda(getComponentOfNaiveReleWeight(), r, marReleWeights, _marFeaVersion);				
 				
 				double curGamma = m_gamma[r-1][dis];
 				if(0 == curGamma){
@@ -1547,11 +1554,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	
 	
 	
-	
-	
-	
-	
-	
+
 	protected void  name() {
 		
 	}
@@ -1622,6 +1625,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		Mode mode = Mode.Original;
 		//
 		boolean useFeature;		
+		
 		if(mode.equals(Mode.Original)){
 			useFeature = false;
 		}else{
@@ -1636,6 +1640,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 				priorAlpha, priorGamma, priorMu);
 		
 		t_UBM.train();
+		
 		System.out.println();
 		System.out.println("----uniform evaluation----");
 		System.out.println("Log-likelihood:\t"+t_UBM.getTestCorpusProb(false, uniformCmp));
