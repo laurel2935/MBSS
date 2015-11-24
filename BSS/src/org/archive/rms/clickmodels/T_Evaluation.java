@@ -1,5 +1,8 @@
 package org.archive.rms.clickmodels;
 
+import java.util.ArrayList;
+
+import org.archive.ml.ufl.Mat;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 
@@ -27,5 +30,9 @@ public interface T_Evaluation {
 	//1 log-likelihood
 	//2 perplexity gain w.r.t. positions below first click
 	//3 perplexity gain per rank w.r.t. positions below first click
+	
+	
+	
+	
 	
 }

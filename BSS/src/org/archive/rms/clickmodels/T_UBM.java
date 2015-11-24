@@ -638,7 +638,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	        			gamma = gamma_new[i][j]/gamma_sta[i][j];
 	        			//in order to continue the iteration
 	        			if(1 == gamma){
-	        				gamma = 0.95;
+	        				gamma = 0.7;
 	        			}
 	        		}else{
 	        			gamma = m_gamma_init;
@@ -1320,6 +1320,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 						}
 						
 						sessionProb *= (alpha_qu*curGamma);
+						
 						if(0 == sessionProb){
 							System.out.println("2 > 0 alpha_qu:\t"+alpha_qu);
 							System.out.println(getComponentOfNaiveReleWeight());

@@ -501,7 +501,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 	
 	public static void main(String[] args) {
 		//1
-		double gamma = 0.75;
+		double gamma = 0.7;
 		double alpha_a; double beta_a; double alpha_s; double beta_s;
 		alpha_a = beta_a = alpha_s = beta_s = 2;		
 		
@@ -509,7 +509,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		int maxQSessionSize = 10;
 		int minQFreForTest = 1;
 
-		Mode mode = Mode.Original;
+		Mode mode = Mode.NaiveRele;
 		
 		boolean useFeature;
 		
