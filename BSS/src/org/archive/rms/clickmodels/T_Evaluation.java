@@ -1,8 +1,5 @@
 package org.archive.rms.clickmodels;
 
-import java.util.ArrayList;
-
-import org.archive.ml.ufl.Mat;
 import org.archive.rms.data.TQuery;
 import org.archive.rms.data.TUrl;
 
@@ -12,7 +9,7 @@ public interface T_Evaluation {
 	public enum Mode {Original, NaiveRele, MarginalRele};
 	
 	////
-	public void train();
+	//public void train(boolean firstCircle);
 
 	/**
 	 * Evaluation-1: log-likelihood of test corpus 

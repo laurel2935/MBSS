@@ -93,10 +93,10 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	
 	private static FunctionType _fType = FunctionType.LINEAR;
 	
-	T_UBM(int minQFre, Mode mode, int maxQSessionSize, boolean useFeature, double testRatio,
+	T_UBM(int foldCnt, int kFoldForTest, int minQFre, Mode mode, int maxQSessionSize, boolean useFeature,
 			double alpha, double gamma, double mu){
 		
-		super(minQFre, mode, useFeature, testRatio, maxQSessionSize);		
+		super(foldCnt, kFoldForTest, minQFre, mode, useFeature, maxQSessionSize);		
 		
 		m_alpha_init = alpha;
 		m_gamma_init = gamma;
@@ -156,8 +156,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		m_mu = new HashMap<String, _pair>();
 		m_uq_stat = new HashMap<String, _stat>();
 		
-		for(int qNum=1; qNum<=this._trainCnt; qNum++){
-			TQuery tQuery = this._QSessionList.get(qNum-1);
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(qNum-1);
 			String qText = tQuery.getQueryText();			
 			
 			ArrayList<TUrl> urlList = tQuery.getUrlList();
@@ -215,8 +215,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		m_uq_stat_mar   = new HashMap<>();
 		
 		//only training part
-		for(int qNum=1; qNum<=this._trainCnt; qNum++){
-			TQuery tQuery = this._QSessionList.get(qNum-1);
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(qNum-1);
 			ArrayList<TUrl> urlList = tQuery.getUrlList();	
 			
 			//part-1
@@ -708,10 +708,10 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		  //parameter size
 		    diff /= (m_alpha.size() + 45);
 		    
-		    System.out.println("[Info]EM step " + step + ", diff:" + diff);
+		    //System.out.println("[Info]EM step " + step + ", diff:" + diff);
 		}	
 		
-		System.out.println("[Info]Processed " + m_alpha.size() + " (q,u) pairs...");
+		//System.out.println("[Info]Processed " + m_alpha.size() + " (q,u) pairs...");
 		
 		//one-time optimization
 		/*
@@ -760,8 +760,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		    }
 		    
 		    //(2) w.r.t. >rFirstClick		    
-		    for(int qNum=1; qNum<=_trainCnt; qNum++){
-		    	TQuery tQuery = this._QSessionList.get(qNum-1);
+		    for(TQuery tQuery: this._trainingCorpus){
+		    	//TQuery tQuery = this._QSessionList.get(qNum-1);
 		    	
 		    	int rFirstClick = tQuery.getFirstClickPosition();
 		    	ArrayList<TUrl> urlList = tQuery.getUrlList();
@@ -834,8 +834,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		    }    
 		    
 		    //update alpha w.r.t. dynamic part, i.e., >rFirstClick
-		    for(int qNum=1; qNum<=_trainCnt; qNum++){
-		    	TQuery tQuery = this._QSessionList.get(qNum-1);
+		    for(TQuery tQuery: this._trainingCorpus){
+		    	//TQuery tQuery = this._QSessionList.get(qNum-1);
 		    	
 		    	int rFirstClick = tQuery.getFirstClickPosition();
 		    	ArrayList<TUrl> urlList = tQuery.getUrlList();
@@ -966,8 +966,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	protected double calMinObjFunctionValue_NaiveRele(){
 		double objVal = 0.0;
 		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);
 			
 			for(TUrl tUrl: tQuery.getUrlList()){
 				String key = getKey(tQuery, tUrl);
@@ -991,8 +991,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		double [] naiveReleWeights = getComponentOfNaiveReleWeight();
 		double [] marReleWeights   = getComponentOfMarReleWeight();
 		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);
 			int firstC = tQuery.getFirstClickPosition();
 			//1 <=rFirstClick
 			for(int rank=1; rank<=firstC; rank++){
@@ -1031,8 +1031,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	}
 	////	
 	protected void calFunctionGradient_NaiveRele(double[] g){	
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);			
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);			
 			
 			for(TUrl tUrl: tQuery.getUrlList()){						
 				String key = getKey(tQuery, tUrl);
@@ -1059,8 +1059,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		double [] naiveReleWeights = getComponentOfNaiveReleWeight();
 		double [] marReleWeights   = getComponentOfMarReleWeight();
 		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);
 			int firstC = tQuery.getFirstClickPosition();			
 			
 			for(int rank=1; rank<=firstC; rank++){
@@ -1125,8 +1125,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		//avoid duplicate update
 		HashSet<String> releKeySet = new HashSet<>();
 		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);			
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);			
 			
 			for(TUrl tUrl: tQuery.getUrlList()){						
 				String key = getKey(tQuery, tUrl);
@@ -1157,8 +1157,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		//avoid duplicate update
 		HashSet<String> releKeySet = new HashSet<>();
 		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);			
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);			
 			
 			int rFirstClick = tQuery.getFirstClickPosition();
 			ArrayList<TUrl> urlList = tQuery.getUrlList(); 
@@ -1192,12 +1192,13 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 	}	
 	
 	////train
-	public void train(){
-		initialSteps(true);
-		estimateParas();
+	public void train(boolean firstCircle){
+		initialSteps(true, firstCircle);	
 		
-		System.out.println();
-		System.out.println("MinObjValue:\t"+_minObjValue);
+		estimateParas();		
+		
+		//System.out.println();
+		//System.out.println("MinObjValue:\t"+_minObjValue);
 	}
 	////
 	protected void estimateParas() {
@@ -1208,8 +1209,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 			//EM_MultipleBrowsingModel(40, 1e-8);
 		}		
 	}
-	
-	
+		
 	protected String getOptParaFileNameString() {
 		 String testParaStr = "_"+Integer.toString(_minQFreForTest)+"_"+Integer.toString(_maxQSessionSize);
 			String optParaFileName = null;
@@ -1553,8 +1553,6 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		}
 	}
 	
-	
-	
 
 	protected void  name() {
 		
@@ -1615,7 +1613,8 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		
 		////1
 		//
-		double testRatio    = 0.25;
+		int foldCnt=4; int kFoldForTest=4;
+		
 		int maxQSessionSize = 10;
 		int minQFreForTest = 1;
 		//
@@ -1623,7 +1622,7 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		double priorGamma=0.5;
 		double priorMu=0.5;
 		//
-		Mode mode = Mode.Original;
+		Mode mode = Mode.MarginalRele;
 		//
 		boolean useFeature;		
 		
@@ -1637,16 +1636,18 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		boolean uniformCmp = true;
 		
 		///UBM and its variations
-		T_UBM t_UBM = new T_UBM(minQFreForTest, mode, maxQSessionSize, useFeature, testRatio,
-				priorAlpha, priorGamma, priorMu);
+		T_UBM t_UBM = new T_UBM(foldCnt, kFoldForTest, minQFreForTest, mode, maxQSessionSize, useFeature, priorAlpha, priorGamma, priorMu);
 		
-		t_UBM.train();
+		////1
+		/*
+		t_UBM.train(true);
 		
 		System.out.println();
 		System.out.println("----uniform evaluation----");
 		System.out.println("Log-likelihood:\t"+t_UBM.getTestCorpusProb(false, uniformCmp));
 		System.out.println();
 		t_UBM.getTestCorpusProb_vsQFreForTest(false, uniformCmp);
+		
 		System.out.println();
 		System.out.println();
 		System.out.println("Avg-perplexity:\t"+t_UBM.getTestCorpusAvgPerplexity(uniformCmp));
@@ -1658,5 +1659,9 @@ public class T_UBM extends FeatureModel implements T_Evaluation {
 		System.out.println("Log-likelihood:\t"+t_UBM.getTestCorpusProb(false, !uniformCmp));
 		System.out.println();
 		System.out.println("Avg-perplexity:\t"+t_UBM.getTestCorpusAvgPerplexity(!uniformCmp));
+		*/
+		
+		////2
+		t_UBM.crossEvaluation();
 	}
 }

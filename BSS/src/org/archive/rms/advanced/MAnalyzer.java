@@ -38,7 +38,7 @@ import org.ejml.simple.SimpleMatrix;
 public class MAnalyzer {
 	//--for extending
 	protected Random m_rand;
-	protected double _testRatio;
+	//protected double _testRatio;
 	//i.e., top-trainNum instances
 	protected int trainCnt;
 	//i.e., later-testNum instances
@@ -49,7 +49,8 @@ public class MAnalyzer {
 	protected ArrayList<TQuery> _trainingCorpus;
 	//testing data
 	protected ArrayList<TQuery> _testCorpus;
-	protected int _foldK;
+	protected int _foldCnt;
+	protected int _kFoldForTest;
 	ArrayList<Pair<Integer, Integer>> _foldList;
 	//--
 	
@@ -95,11 +96,12 @@ public class MAnalyzer {
 	private static boolean _useAll = false;
 	private static int _minQFreForSparcityCmp = 1;
 	
-	protected MAnalyzer(int foldK, int minQFreForTest, double testRatio, boolean useFeature, int maxQSessionSize){
-		this._testRatio = testRatio;
+	protected MAnalyzer(int foldCnt, int kFoldForTest, int minQFreForTest, boolean useFeature, int maxQSessionSize){
+		//this._testRatio = testRatio;
 		this._minQFreForTest = minQFreForTest;
 		this._maxQSessionSize = maxQSessionSize;
-		this._foldK = foldK;
+		this._foldCnt = foldCnt;
+		this._kFoldForTest = kFoldForTest;
 		
 		this._QSessionList = new ArrayList<>();
 		//search log
@@ -117,10 +119,14 @@ public class MAnalyzer {
 		filterByClickNum(maxClickCnt);
 		
 		int corpusSize = this._QSessionList.size();
-		this._foldList = getFoldList(corpusSize, _foldK);
+		this._foldList = getFoldList(corpusSize, _foldCnt);
 		
-		this._trainingCorpus = getTrainingCorpus(this._foldK);
-		this._testCorpus = getTestCorpus(this._foldK, minQFreForTest);
+		this._trainingCorpus = getTrainingCorpus(this._kFoldForTest);
+		this._testCorpus = getTestCorpus(this._kFoldForTest, this._minQFreForTest);
+		this.trainCnt = _trainingCorpus.size();
+		this.testCnt = _testCorpus.size();
+		
+		System.out.println("Finally used query sessions:\t"+this._QSessionList.size()+"\t"+(this.trainCnt+this.testCnt));
 	}
 	
 	MAnalyzer(){
@@ -159,7 +165,7 @@ public class MAnalyzer {
 	public ArrayList<TQuery> getTrainingCorpus(int kFoldForTest){
 		ArrayList<TQuery> trainingCorpus = new ArrayList<>();
 		
-		for(int i=1; i<=this._foldK; i++){
+		for(int i=1; i<=this._foldCnt; i++){
 			if(i == kFoldForTest){
 				continue;
 			}else{
@@ -203,6 +209,10 @@ public class MAnalyzer {
 			return testCorpus;			
 		}else{
 			Pair<Integer, Integer> foldEntry = this._foldList.get(kFoldForTest-1);
+			
+			//System.out.println(foldEntry.toString());
+			//System.out.println(this._QSessionList.size());
+			
 			int be=foldEntry.getFirst();
 			int en=foldEntry.getSecond();			
 			
@@ -211,6 +221,14 @@ public class MAnalyzer {
 			}
 			return testCorpus;
 		}				
+	}
+	
+	public void refreshCorpus(int kFoldForTest){
+		this._kFoldForTest = kFoldForTest;
+		this._trainingCorpus = getTrainingCorpus(this._kFoldForTest);
+		this._testCorpus = getTestCorpus(this._kFoldForTest, this._minQFreForTest);
+		this.trainCnt = _trainingCorpus.size();
+		this.testCnt = _testCorpus.size();
 	}
 	
 	public ArrayList<TQuery> filterCorpus(int _minQFreForSparcityCmp){
@@ -916,7 +934,7 @@ public class MAnalyzer {
 			ArrayList<Pair<Integer, Integer>> foldList = new ArrayList<>();
 			int begin = 0;
 			for(Integer intCap: intCapList){
-				int end = begin+intCap;
+				int end = begin+intCap-1;
 				foldList.add(new Pair<Integer, Integer>(begin, end));
 				begin = end+1;
 			}
@@ -984,8 +1002,10 @@ public class MAnalyzer {
 		4 5
 		6 7
 		8 9
-		MAnalyzer.getFoldList(10, 5);
 		*/
+		///*
+		MAnalyzer.getFoldList(10, 3);
+		//*/
 		
 		
 	}

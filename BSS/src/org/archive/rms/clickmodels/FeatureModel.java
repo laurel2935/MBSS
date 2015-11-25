@@ -12,7 +12,6 @@ import java.util.Random;
 import optimizer.LBFGS;
 import optimizer.LBFGS.ExceptionWithIflag;
 
-import org.archive.access.feature.FRoot;
 import org.archive.rms.advanced.MAnalyzer;
 import org.archive.rms.advanced.USMFrame.FunctionType;
 import org.archive.rms.clickmodels.T_Evaluation.Mode;
@@ -34,16 +33,16 @@ public abstract class FeatureModel extends MAnalyzer {
 	
 	//w.r.t. independent relevance
 	protected double []  _naiveReleWeights;
-	protected static int _naiveReleFeaLen = 13;
+	protected int _naiveReleFeaLen = 13;
 	
 	//w.r.t. marginal utility, consisting of two parts: (1) documents >= first clicked documents; (2) documents below first clicked document
 	protected double []  _twinWeights;
 	//i.e., when computing marginal utility, only use marginal features, which seems to be counter-intuitive without relevance features
-	protected static int _twinFeatureLen_v_1 = 13 + 6;
+	protected int _twinFeatureLen_v_1 = 13 + 6;
 	//i.e., when computing marginal utility, both marginal features and relevance features are used.
-	protected static int _twinFeatureLen_v_2 = 13 + 13 + 6;
+	protected int _twinFeatureLen_v_2 = 13 + 13 + 6;
 	
-	protected static MarStyle _defaultMarStyle = MarStyle.AVG;
+	protected static MarStyle _defaultMarStyle = MarStyle.MAX;
 	
 	public enum MarFeaVersion {V1, V2};
 	protected MarFeaVersion _marFeaVersion = MarFeaVersion.V1;
@@ -59,15 +58,15 @@ public abstract class FeatureModel extends MAnalyzer {
 	protected HashSet<String> _seenQUPairSet;
 	protected HashSet<String> _unseenQUPairSet;
 	
-	protected static HashSet<String> _seenQUPairInTest = new HashSet<>();
-	protected static HashSet<String> _unseenQUPairInTest = new HashSet<>();
+	protected HashSet<String> _seenQUPairInTest = new HashSet<>();
+	protected HashSet<String> _unseenQUPairInTest = new HashSet<>();
 	
 	protected static DecimalFormat resultFormat = new DecimalFormat("#.####");
     ////----
 	
 	
-	FeatureModel(int minQFre, Mode mode, boolean useFeature, double testRatio, int maxQSessionSize){
-		super(minQFre, testRatio, useFeature, maxQSessionSize);
+	FeatureModel(int foldCnt, int kFoldForTest, int minQFre, Mode mode, boolean useFeature, int maxQSessionSize){
+		super(foldCnt, kFoldForTest, minQFre, useFeature, maxQSessionSize);
 		
 		_mode = mode;
 		_defaultQSessionSize = maxQSessionSize;
@@ -186,15 +185,16 @@ public abstract class FeatureModel extends MAnalyzer {
 	protected abstract String getOptParaFileNameString();
 
 	////
-	protected void initialSteps(boolean useCurrentOptimal) {
-		if(!_mode.equals(Mode.Original)){
-			iniWeightVector(useCurrentOptimal);
-			iniFeatures();
+	protected void initialSteps(boolean useCurrentOptimal, boolean firstCircle) {
+		if(firstCircle){
+			if(!_mode.equals(Mode.Original)){
+				iniWeightVector(useCurrentOptimal);
+				iniFeatures();
+			}
 		}
 		
 		getStats();
-		
-		getSeenQUPairs();		
+		getSeenQUPairs();						
 	}
 	////feature
 	protected void iniFeatures(){
@@ -488,7 +488,7 @@ public abstract class FeatureModel extends MAnalyzer {
 				}
 
 			} catch (ExceptionWithIflag ex){
-				System.err.println("[Warning] M-step cannot proceed!");
+				//System.err.println("[Warning] M-step cannot proceed!");
 			}	
 			
 			//outputParas();
@@ -525,16 +525,22 @@ public abstract class FeatureModel extends MAnalyzer {
 	protected abstract void getStats_Static();
 	protected abstract void getStats_MarginalRele();
 	
+	protected static int avgUniformTestCnt = 0;
+	protected static int avgWholeTestCnt = 0;
+	
 	public double getTestCorpusProb(boolean onlyClicks, boolean uniformCmp){
-		getSeenVsUnseenInfor();
+		//getSeenVsUnseenInfor();
 				
-		_testCorpus = getTestCorpus(this._minQFreForTest);
+		//_testCorpus = getTestCorpus(this._minQFreForTest);
 		double corpusLikelihood = 0.0;
+		
+		int testCnt = 0;
 		
 		for(TQuery tQuery: _testCorpus){			
 			if(skipQuerySession(tQuery, uniformCmp)){
 				continue;
 			}
+			testCnt++;
 			
 			double sessionPro;
 			if(_mode.equals(Mode.MarginalRele)){
@@ -544,6 +550,7 @@ public abstract class FeatureModel extends MAnalyzer {
 			}
 			
 			double logValue = Math.log(sessionPro);
+			
 			if(Double.isNaN(logValue)){
 				System.out.println("Zero session pro error!");
 				System.out.println(sessionPro);
@@ -553,22 +560,28 @@ public abstract class FeatureModel extends MAnalyzer {
 			
 			corpusLikelihood += logValue;
 		}
+		
+		if(uniformCmp){
+			avgUniformTestCnt += testCnt;
+		}else{
+			avgWholeTestCnt += testCnt;
+		}
+
+		System.out.println("Test count:\t"+testCnt);
 		//the higher the better
 		return corpusLikelihood;		
 	}
 	
-	public void getTestCorpusProb_vsQFreForTest(boolean onlyClicks, boolean uniformCmp){	
+	public ArrayList<Double> getTestCorpusProb_vsQFreForTest(boolean onlyClicks, boolean uniformCmp){	
 		int freT = 10;
-		System.out.println("Log-likelihod vs QFreForTest [1-"+freT+"]:");
+		ArrayList<Double> LLVsQFre = new ArrayList<>();
 		
-		for(int fre=1; fre<=freT; fre++){
-			
-			_testCorpus = getTestCorpus(fre);
-			
-			//
+		System.out.println("Log-likelihod vs QFreForTest [1-"+freT+"]:");		
+		for(int fre=1; fre<=freT; fre++){			
+			ArrayList<TQuery> testCorpus = getTestCorpus(this._kFoldForTest, fre);
 			double corpusLikelihood = 0.0;
 			
-			for(TQuery tQuery: _testCorpus){			
+			for(TQuery tQuery: testCorpus){			
 				if(skipQuerySession(tQuery, uniformCmp)){
 					continue;
 				}
@@ -581,6 +594,7 @@ public abstract class FeatureModel extends MAnalyzer {
 				}
 				
 				double logValue = Math.log(sessionPro);
+				
 				if(Double.isNaN(logValue)){
 					System.out.println("Zero session pro error!");
 					System.out.println(sessionPro);
@@ -590,9 +604,13 @@ public abstract class FeatureModel extends MAnalyzer {
 				corpusLikelihood += logValue;
 			}
 			
+			LLVsQFre.add(corpusLikelihood);
+			
 			System.out.print(resultFormat.format(corpusLikelihood)+", ");
 		}
-		System.out.println();				
+		System.out.println();
+		
+		return LLVsQFre;
 	}
 	
 	public abstract double getSessionProb(TQuery tQuery, boolean onlyClicks);
@@ -600,49 +618,71 @@ public abstract class FeatureModel extends MAnalyzer {
 	
 	
 	
-	public double getTestCorpusAvgPerplexity(boolean uniformCmp){
-		_testCorpus = getTestCorpus(this._minQFreForTest);
-		
+	public double getTestCorpusAvgPerplexity(boolean uniformCmp){		
 		double avgPerplexity = 0.0;
 		double perpAtK;
-		System.out.println("Perplexity at each position [1-10]:");
+		ArrayList<Double> PPerRank = new ArrayList<>();
+		
+		System.out.println("Perplexity at each position [1-10]:");		
 		for(int r=1; r<=_maxQSessionSize; r++){
-			perpAtK = getTestCorpusPerplexityAtK(uniformCmp, r);
+			perpAtK = getTestCorpusPerplexityAtK(this._testCorpus, uniformCmp, r);
 			avgPerplexity += perpAtK;
 			System.out.print(resultFormat.format(perpAtK)+", ");
+			
+			PPerRank.add(perpAtK);
 		}
 		System.out.println();
 		
-		return avgPerplexity/_maxQSessionSize;
+		//
+		avgPerplexity = avgPerplexity/_maxQSessionSize;
+		
+		return avgPerplexity;
 	}
 	
-	public void getTestCorpusAvgPerplexity_vsQFreForTest(boolean uniformCmp){
-		int freT = 10;
-		System.out.println("AvgPerplexity vs QFreForTest [1-"+freT+"]:");
+	public ArrayList<Double> getPerplexityPerRank(boolean uniformCmp){		
+		double perpAtK;
+		ArrayList<Double> PPerRank = new ArrayList<>();
 		
+		System.out.println("Perplexity at each position [1-10]:");		
+		for(int r=1; r<=_maxQSessionSize; r++){
+			perpAtK = getTestCorpusPerplexityAtK(this._testCorpus, uniformCmp, r);
+			System.out.print(resultFormat.format(perpAtK)+", ");			
+			PPerRank.add(perpAtK);
+		}
+		System.out.println();		
+		return PPerRank;
+	}
+	
+	public ArrayList<Double> getTestCorpusAvgPerplexity_vsQFreForTest(boolean uniformCmp){
+		ArrayList<Double> APVsQFre = new ArrayList<>();
+		int freT = 10;
+		
+		System.out.println("AvgPerplexity vs QFreForTest [1-"+freT+"]:");		
 		for(int fre=1; fre<=freT; fre++){			
-			_testCorpus = getTestCorpus(fre);
-			//
+			ArrayList<TQuery> testCorpus = getTestCorpus(this._kFoldForTest, fre);
 			//--
 			double avgPerplexity = 0.0;
 			double perpAtK;
 			for(int r=1; r<=_maxQSessionSize; r++){
-				perpAtK = getTestCorpusPerplexityAtK(uniformCmp, r);
+				perpAtK = getTestCorpusPerplexityAtK(testCorpus, uniformCmp, r);
 				avgPerplexity += perpAtK;
 			}			
 			avgPerplexity = avgPerplexity/_maxQSessionSize;
+			
+			APVsQFre.add(avgPerplexity);
 			
 			System.out.print(resultFormat.format(avgPerplexity)+", ");
 		}
 		System.out.println();
 		
+		return APVsQFre;		
 	}
 	
-	public double getTestCorpusPerplexityAtK(boolean uniformCmp, int k){		
+	public double getTestCorpusPerplexityAtK(ArrayList<TQuery> testCorpus, boolean uniformCmp, int k){		
 		double corpusPerplexityAtK = 0.0;
 		int cnt = 0;
 		
-		for(TQuery tQuery: _testCorpus){		
+		for(TQuery tQuery: testCorpus){		
 			if(skipQuerySession(tQuery, uniformCmp) || tQuery.getUrlList().size()<k){
 				continue;
 			}
@@ -667,8 +707,8 @@ public abstract class FeatureModel extends MAnalyzer {
 	//
 	protected void getSeenQUPairs(){
 		this._seenQUPairSet = new HashSet<>();		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);			
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);			
 			for(TUrl tUrl: tQuery.getUrlList()){						
 				String key = getKey(tQuery, tUrl);
 				if(!this._seenQUPairSet.contains(key)){
@@ -680,7 +720,8 @@ public abstract class FeatureModel extends MAnalyzer {
 	////
 	protected void getSeenVsUnseenInfor() {
 		System.out.println();
-		System.out.println("TrainNum: "+_trainCnt+"\tTestNum: "+_testCnt);
+		
+		System.out.println("TrainNum: "+trainCnt+"\tTestNum: "+testCnt);
 		
 		int unseenQSessionCnt = 0;
 		for(TQuery tQuery: _testCorpus){
@@ -690,7 +731,7 @@ public abstract class FeatureModel extends MAnalyzer {
 		}		
 		System.out.println("seenQUPairInTest: "+_seenQUPairInTest.size()+"\tunseenQUPairInTest: "+_unseenQUPairInTest.size()+"\tratio: "+(_unseenQUPairInTest.size()*1.0/(_seenQUPairInTest.size()+_unseenQUPairInTest.size())));
 		System.out.println();
-		System.out.println("UnseenQuerySession: "+unseenQSessionCnt+"\tTestQuerySession: "+_testCnt+"\tUnseenRatio: "+(unseenQSessionCnt*1.0/_testCnt));
+		System.out.println("UnseenQuerySession: "+unseenQSessionCnt+"\tTestQuerySession: "+testCnt+"\tUnseenRatio: "+(unseenQSessionCnt*1.0/testCnt));
 		System.out.println();
 	}
 	
@@ -725,5 +766,114 @@ public abstract class FeatureModel extends MAnalyzer {
 		}
 		
 		return unseenCnt>0;
+	}
+	
+	public abstract void train(boolean firstCircle);
+	
+	
+	public void crossEvaluation(){
+		//
+		boolean uniformCmp = true;
+		//
+		double uniform_LL = 0.0;
+		ArrayList<Double> uniform_LLVsQFre;
+		double uniform_AP = 0.0;
+		ArrayList<Double> uniform_APVsQFre;
+		
+		double whole_LL = 0.0;
+		ArrayList<Double> whole_LLVsQFre;
+		double whole_AP = 0.0;
+		ArrayList<Double> whole_APVsQFre;
+		ArrayList<Double> whole_PPerRank;
+		
+		//firstCircle
+		System.out.println();
+		System.out.println("---\tRound-"+this._kFoldForTest+"\t---TestSize:"+this._testCorpus.size());
+		train(true);
+		
+		uniform_LL += getTestCorpusProb(false, uniformCmp);
+		uniform_LLVsQFre = getTestCorpusProb_vsQFreForTest(false, uniformCmp);
+		uniform_AP += getTestCorpusAvgPerplexity(uniformCmp);
+		uniform_APVsQFre = getTestCorpusAvgPerplexity_vsQFreForTest(uniformCmp);
+		
+		whole_LL += getTestCorpusProb(false, !uniformCmp);
+		whole_LLVsQFre = getTestCorpusProb_vsQFreForTest(false, !uniformCmp);
+		whole_AP += getTestCorpusAvgPerplexity(!uniformCmp);
+		whole_APVsQFre = getTestCorpusAvgPerplexity_vsQFreForTest(!uniformCmp);
+		whole_PPerRank = getPerplexityPerRank(!uniformCmp);
+		
+		for(int k=this._kFoldForTest-1; k>=1; k--){			
+			refreshCorpus(k);
+			System.out.println();
+			System.out.println("---\tRound-"+k+"\t---");
+			
+			train(false);
+			
+			uniform_LL += getTestCorpusProb(false, uniformCmp);
+			elementWiseAddToFirst(uniform_LLVsQFre, getTestCorpusProb_vsQFreForTest(false, uniformCmp));
+			uniform_AP += getTestCorpusAvgPerplexity(uniformCmp);
+			elementWiseAddToFirst(uniform_APVsQFre, getTestCorpusAvgPerplexity_vsQFreForTest(uniformCmp));
+			
+			whole_LL += getTestCorpusProb(false, !uniformCmp);
+			elementWiseAddToFirst(whole_LLVsQFre, getTestCorpusProb_vsQFreForTest(false, !uniformCmp));
+			whole_AP += getTestCorpusAvgPerplexity(!uniformCmp);
+			elementWiseAddToFirst(whole_APVsQFre, getTestCorpusAvgPerplexity_vsQFreForTest(!uniformCmp));
+			elementWiseAddToFirst(whole_PPerRank, getPerplexityPerRank(!uniformCmp));			
+		}
+		
+		uniform_LL /= this._foldCnt;
+		uniform_AP /= this._foldCnt;
+		whole_LL /= this._foldCnt;
+		whole_AP /= this._foldCnt;
+		
+		elementWiseDevideToFirst(uniform_LLVsQFre , this._foldCnt);
+		elementWiseDevideToFirst(uniform_APVsQFre , this._foldCnt);
+		elementWiseDevideToFirst(whole_LLVsQFre , this._foldCnt);
+		elementWiseDevideToFirst(whole_APVsQFre , this._foldCnt);
+		elementWiseDevideToFirst(whole_PPerRank , this._foldCnt);
+		
+		System.out.println();
+		System.out.println();
+		System.out.println("---\tCross-validation results\t---");
+		
+		System.out.println("Uniform LL:\t"+uniform_LL);
+		System.out.println("Uniform LL vsQFreForTest:");
+		output(uniform_LLVsQFre);
+		System.out.println("Uniform AP:\t"+uniform_AP);
+		System.out.println("Uniform AP vsQFreForTest:");
+		output(uniform_APVsQFre);
+		
+		System.out.println();
+		
+		System.out.println("Whole LL:\t"+whole_LL);
+		System.out.println("Whole LL vsQFreForTest:");
+		output(whole_LLVsQFre);
+		System.out.println("Whole AP:\t"+whole_AP);
+		System.out.println("Whole AP vsQFreForTest:");
+		output(whole_APVsQFre);
+		System.out.println("Whole AP per Rank:");
+		output(whole_PPerRank);
+		System.out.println("Avg uniform test cnt:\t"+avgUniformTestCnt*1.0/this._foldCnt);
+		System.out.println("Avg whole test cnt:\t"+avgWholeTestCnt*1.0/this._foldCnt);
+	}
+
+	public static void elementWiseAddToFirst(ArrayList<Double> firstList, ArrayList<Double> secondList){
+		for(int r=0; r<firstList.size(); r++){
+			firstList.set(r, firstList.get(r)+secondList.get(r));
+		}
+	}
+	
+	public static void elementWiseDevideToFirst(ArrayList<Double> firstList, int foldCnt){
+		for(int r=0; r<firstList.size(); r++){
+			firstList.set(r, firstList.get(r)/foldCnt);
+		}
+	}
+	
+	public void output(ArrayList<Double> list){
+		for(Double element: list){
+			System.out.print(resultFormat.format(element)+", ");
+		}
+		System.out.println();
+		System.out.println();
 	}
 }

@@ -15,16 +15,16 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 	
 	HashMap<String, Double> _alpha = new HashMap<>();
 	
-	public LogisticRegression(int minQFre, Mode mode, boolean useFeature, double testRatio, int maxQSessionSize){
-		super(minQFre, mode, useFeature, testRatio, maxQSessionSize);
+	public LogisticRegression(int foldCnt, int kFoldForTest, int minQFre, Mode mode, boolean useFeature, int maxQSessionSize){
+		super(foldCnt, kFoldForTest, minQFre, mode, useFeature, maxQSessionSize);
 	}
 	
 	
 	protected double calMinObjFunctionValue_NaiveRele(){
 		double objVal = 0.0;
 		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);
 			
 			for(TUrl tUrl: tQuery.getUrlList()){
 		
@@ -47,8 +47,8 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 		double [] naiveReleWeights = getComponentOfNaiveReleWeight();
 		double [] marReleWeights   = getComponentOfMarReleWeight();
 		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);
 			int firstC = tQuery.getFirstClickPosition();
 			//1 <=rFirstClick
 			for(int rank=1; rank<=firstC; rank++){
@@ -81,8 +81,8 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 	}
 	
 	protected void calFunctionGradient_NaiveRele(double[] g){	
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);			
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);			
 			
 			for(TUrl tUrl: tQuery.getUrlList()){	
 				double postRelePro = tUrl.getGTruthClick()>0?1:0;								
@@ -107,8 +107,8 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 		double [] naiveReleWeights = getComponentOfNaiveReleWeight();
 		double [] marReleWeights   = getComponentOfMarReleWeight();
 		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);
 			int firstC = tQuery.getFirstClickPosition();			
 			
 			for(int rank=1; rank<=firstC; rank++){
@@ -179,8 +179,8 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 		//avoid duplicate update
 		HashSet<String> releKeySet = new HashSet<>();
 		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);			
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);			
 			
 			for(TUrl tUrl: tQuery.getUrlList()){						
 				String key = getKey(tQuery, tUrl);
@@ -208,8 +208,8 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 		//avoid duplicate update
 		HashSet<String> releKeySet = new HashSet<>();
 		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);			
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);			
 			
 			int rFirstClick = tQuery.getFirstClickPosition();
 			ArrayList<TUrl> urlList = tQuery.getUrlList(); 
@@ -354,12 +354,13 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 	}
 	
 	////train
-	public void train(){
-		initialSteps(true);
+	public void train(boolean firstCircle){
+		initialSteps(true, firstCircle);
+		
 		estimateParas();
 		
-		System.out.println();
-		System.out.println("MinObjValue:\t"+_minObjValue);
+		//System.out.println();
+		//System.out.println("MinObjValue:\t"+_minObjValue);
 	}
 	
 	public double getClickProb(TQuery tQuery, TUrl tUrl) {
@@ -448,7 +449,8 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 	public static void main(String []args){
 		////1
 		//
-		double testRatio    = 0.25;
+		int foldCnt=4; int kFoldForTest=4;
+		//double testRatio    = 0.25;
 		int maxQSessionSize = 10;
 		int minQFreForTest = 1;
 	
@@ -466,9 +468,11 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 		
 		
 		///UBM and its variations
-		LogisticRegression logisticRegression = new LogisticRegression(minQFreForTest, mode, useFeature, testRatio, maxQSessionSize);
+		LogisticRegression logisticRegression = new LogisticRegression(foldCnt, kFoldForTest, minQFreForTest, mode, useFeature, maxQSessionSize);
 		
-		logisticRegression.train();
+		////1
+		/*
+		logisticRegression.train(true);
 		
 		System.out.println();
 		System.out.println("----uniform evaluation----");
@@ -486,5 +490,9 @@ public class LogisticRegression extends FeatureModel implements T_Evaluation {
 		System.out.println("Log-likelihood:\t"+logisticRegression.getTestCorpusProb(false, !uniformCmp));
 		System.out.println();
 		System.out.println("Avg-perplexity:\t"+logisticRegression.getTestCorpusAvgPerplexity(!uniformCmp));
+		*/
+		
+		////2
+		logisticRegression.crossEvaluation();
 	}
 }

@@ -44,11 +44,11 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 	Random m_rand;
 	private static FunctionType _fType = FunctionType.LINEAR;
 	
-	public T_DBN(int maxQSessionSize, Mode mode, boolean useFeature, int minQFre, double testRatio,
+	public T_DBN(int foldCnt, int kFoldForTest, int maxQSessionSize, Mode mode, boolean useFeature, int minQFre,
 			double gamma, double alpha_a, double beta_a, double alpha_s, double beta_s){
 		//
 		//super(minQFre, testRatio, useFeature, maxQSessionSize);
-		super(minQFre, mode, useFeature, testRatio, maxQSessionSize);
+		super(foldCnt, kFoldForTest, minQFre, mode, useFeature, maxQSessionSize);
 		
 		m_gamma = gamma;		
 		//beta distribution w.r.t. event:A
@@ -110,8 +110,8 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		while(step++<iter && diff>tol){
 			//E-step
 			//training parts
-			for(int qNum=1; qNum<=this._trainCnt; qNum++){
-				TQuery tQuery = this._QSessionList.get(qNum-1);
+			for(TQuery tQuery: this._trainingCorpus){
+				//TQuery tQuery = this._QSessionList.get(qNum-1);
 				ArrayList<TUrl> urlList = tQuery.getUrlList();
 				
 				uSize = urlList.size();
@@ -316,8 +316,8 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 	protected double calMinObjFunctionValue_NaiveRele(){
 		double objVal = 0.0;
 		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);
 			
 			for(TUrl tUrl: tQuery.getUrlList()){
 				_param param = lookupURL(tQuery, tUrl, false, false);
@@ -337,8 +337,8 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		return Double.NaN;
 	}
 	protected void calFunctionGradient_NaiveRele(double[] g){	
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);			
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);			
 			
 			for(TUrl tUrl: tQuery.getUrlList()){						
 				_param param = lookupURL(tQuery, tUrl, false, false);
@@ -367,8 +367,8 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		//avoid duplicate update
 		HashSet<String> releKeySet = new HashSet<>();
 		
-		for(int i=0; i<this._trainCnt; i++){
-			TQuery tQuery = this._QSessionList.get(i);			
+		for(TQuery tQuery: this._trainingCorpus){
+			//TQuery tQuery = this._QSessionList.get(i);			
 			
 			for(TUrl tUrl: tQuery.getUrlList()){						
 				String key = getKey(tQuery, tUrl);
@@ -501,11 +501,13 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 	
 	public static void main(String[] args) {
 		//1
+		int foldCnt=4; int kFoldForTest=4;
+		
 		double gamma = 0.7;
 		double alpha_a; double beta_a; double alpha_s; double beta_s;
 		alpha_a = beta_a = alpha_s = beta_s = 2;		
 		
-		double testRatio = 0.25;
+		//double testRatio = 0.25;
 		int maxQSessionSize = 10;
 		int minQFreForTest = 1;
 
@@ -522,7 +524,7 @@ public class T_DBN extends FeatureModel implements T_Evaluation {
 		boolean uniformCmp = true;
 		
 		// due to the fact of serious sparcity problem!!!!, is it ok to be used as a baseline?
-		T_DBN DBN = new T_DBN(maxQSessionSize, mode, useFeature, minQFreForTest, testRatio,
+		T_DBN DBN = new T_DBN(foldCnt, kFoldForTest, maxQSessionSize, mode, useFeature, minQFreForTest,
 				gamma, alpha_a, beta_a, alpha_s, beta_s);
 		
 		DBN.train();
